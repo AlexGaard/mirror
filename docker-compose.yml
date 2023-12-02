@@ -1,0 +1,31 @@
+version: '3.8'
+services:
+  db:
+    image: 'postgres:16-alpine'
+    container_name: mirror-postgres
+    volumes:
+      - db-volume:/var/lib/postgresql/data
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_PASSWORD: qwerty
+    command:
+      - postgres
+      - -c
+      - wal_level=logical
+
+  rabbitmq:
+    image: 'rabbitmq:3.12-management-alpine'
+    container_name: mirror-rabbitmq
+    volumes:
+      - rabbitmq-volume:/var/lib/rabbitmq
+    ports:
+      - '5672:5672'
+      - '15672:15672' # Web GUI
+    environment:
+      RABBITMQ_DEFAULT_USER: rabbit
+      RABBITMQ_DEFAULT_PASS: qwerty
+
+volumes:
+  db-volume:
+  rabbitmq-volume:
