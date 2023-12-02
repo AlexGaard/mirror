@@ -9,12 +9,9 @@ public abstract class Event {
 
     public final String type;
 
-    public final long createdAt;
-
-    protected Event(UUID id, String type, long createdAt) {
+    protected Event(UUID id, String type) {
         this.id = id;
         this.type = type;
-        this.createdAt = createdAt;
     }
 
     @Override
@@ -22,12 +19,12 @@ public abstract class Event {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Event that = (Event) o;
-        return createdAt == that.createdAt && Objects.equals(id, that.id) && Objects.equals(type, that.type);
+        return Objects.equals(id, that.id) && Objects.equals(type, that.type);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, type, createdAt);
+        return Objects.hash(id, type);
     }
 
     @Override
@@ -35,7 +32,6 @@ public abstract class Event {
         return "Event{" +
                 "id=" + id +
                 ", type='" + type + '\'' +
-                ", createdAt=" + createdAt +
                 '}';
     }
 }

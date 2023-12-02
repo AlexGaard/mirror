@@ -9,13 +9,13 @@ public class DeleteEvent extends Event {
     public final String namespace;
 
     public final String table;
-    public final List<Field> identifier;
+    public final List<Field> identifyingFields;
 
-    public DeleteEvent(UUID id, long createdAt, String namespace, String table, List<Field> identifier) {
-        super(id, TYPE, createdAt);
+    public DeleteEvent(UUID id, String namespace, String table, List<Field> identifyingFields) {
+        super(id, TYPE);
         this.namespace = namespace;
         this.table = table;
-        this.identifier = identifier;
+        this.identifyingFields = identifyingFields;
     }
 
 }

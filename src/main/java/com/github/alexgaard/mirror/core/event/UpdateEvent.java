@@ -13,8 +13,8 @@ public class UpdateEvent extends Event {
 
     public final List<Field> fields;
 
-    public UpdateEvent(UUID id, long createdAt, String namespace, String table, List<Field> identifier, List<Field> fields) {
-        super(id, TYPE, createdAt);
+    public UpdateEvent(UUID id, String namespace, String table, List<Field> identifier, List<Field> fields) {
+        super(id, TYPE);
         this.namespace = namespace;
         this.table = table;
         this.identifier = identifier;

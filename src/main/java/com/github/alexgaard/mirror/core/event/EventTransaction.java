@@ -23,7 +23,7 @@ public class EventTransaction {
         sourceName = null;
         committedAt = 0;
         createdAt = 0;
-        events = null;
+        events = Collections.emptyList();
     }
 
     public EventTransaction(UUID id, String sourceName, long committedAt, long createdAt, List<Event> events) {

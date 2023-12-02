@@ -1,10 +1,12 @@
 package com.github.alexgaard.mirror.postgres.processor;
 
+import com.github.alexgaard.mirror.core.event.DeleteEvent;
 import com.github.alexgaard.mirror.core.event.EventTransaction;
 import com.github.alexgaard.mirror.core.event.Field;
 import com.github.alexgaard.mirror.core.event.InsertEvent;
 import com.github.alexgaard.mirror.postgres.utils.QueryUtils;
 import com.github.alexgaard.mirror.test_utils.DataTypesDbo;
+import com.github.alexgaard.mirror.test_utils.DataTypesRepository;
 import com.github.alexgaard.mirror.test_utils.DbUtils;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -20,9 +22,9 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.resultList;
+import static com.github.alexgaard.mirror.test_utils.AsyncUtils.eventually;
 import static java.time.temporal.ChronoUnit.MILLIS;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 @Testcontainers
 public class PostgresEventProcessorTest {
@@ -33,9 +35,12 @@ public class PostgresEventProcessorTest {
 
     private static DataSource dataSource;
 
+    private static DataTypesRepository dataTypesRepository;
+
     @BeforeAll
     public static void setup() {
         dataSource = DbUtils.createDataSource(postgres);
+        dataTypesRepository = new DataTypesRepository(dataSource);
         DbUtils.initTables(dataSource);
     }
 
@@ -67,7 +72,6 @@ public class PostgresEventProcessorTest {
 
         InsertEvent insert = new InsertEvent(
                 UUID.randomUUID(),
-                System.currentTimeMillis(),
                 "public",
                 "data_types",
                 fields
@@ -75,7 +79,8 @@ public class PostgresEventProcessorTest {
 
         processor.process(EventTransaction.of("test", insert));
 
-        DataTypesDbo dataTypes = getDataTypes(id);
+        DataTypesDbo dataTypes = dataTypesRepository.getDataTypes(id)
+                .orElseThrow();
 
         assertEquals(fields.get(0).value, dataTypes.id);
         assertEquals(fields.get(1).value, dataTypes.int2_field);
@@ -97,47 +102,34 @@ public class PostgresEventProcessorTest {
         assertEquals(((OffsetDateTime) fields.get(17).value).truncatedTo(MILLIS), dataTypes.timestamptz_field.truncatedTo(MILLIS));
     }
 
-    private DataTypesDbo getDataTypes(int id) {
-        return QueryUtils.query(dataSource, "SELECT * FROM data_types WHERE id = ?", statement -> {
-            statement.setInt(1, id);
-            ResultSet resultSet = statement.executeQuery();
-
-            return resultList(resultSet, PostgresEventProcessorTest::mapRowToDataTypesDbo)
-                    .stream()
-                    .findAny()
-                    .orElseThrow();
-        });
-    }
-
-    private static DataTypesDbo mapRowToDataTypesDbo(ResultSet rs) throws SQLException {
+    @Test
+    public void should_handle_delete_event() {
         DataTypesDbo dbo = new DataTypesDbo();
-        dbo.id = rs.getInt("id");
-        dbo.int2_field = rs.getShort("int2_field");
-        dbo.int4_field = rs.getInt("int4_field");
-        dbo.int8_field = rs.getLong("int8_field");
-        dbo.float4_field = rs.getFloat("float4_field");
-        dbo.float8_field = rs.getDouble("float8_field");
-        dbo.uuid_field = uuid(rs.getString("uuid_field"));
-        dbo.varchar_field = rs.getString("varchar_field");
-        dbo.text_field = rs.getString("text_field");
-        dbo.bool_field = rs.getBoolean("bool_field");
-        dbo.bytes_field = rs.getBytes("bytes_field");
-        dbo.char_field = character(rs.getString("char_field"));
-        dbo.json_field = rs.getString("json_field");
-        dbo.jsonb_field = rs.getString("jsonb_field");
-        dbo.date_field = rs.getObject("date_field", LocalDate.class);
-        dbo.time_field = rs.getObject("time_field", LocalTime.class);
-        dbo.timestamp_field = rs.getObject("timestamp_field", LocalDateTime.class);
-        dbo.timestamptz_field = rs.getObject("timestamptz_field", OffsetDateTime.class);
-        return dbo;
-    }
+        dbo.id = 78;
 
-    private static UUID uuid(String str) {
-        return str != null ? UUID.fromString(str) : null;
-    }
+        dataTypesRepository.insertDataTypes(dbo);
 
-    private static Character character(String str) {
-        return str != null ? str.charAt(0) : null;
+        eventually(() -> {
+            assertNotNull(dataTypesRepository.getDataTypes(dbo.id));
+        });
+
+        PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
+
+        List<Field> fields = new ArrayList<>();
+        fields.add(new Field("id", dbo.id, Field.Type.INT32));
+
+        DeleteEvent delete = new DeleteEvent(
+                UUID.randomUUID(),
+                "public",
+                "data_types",
+                fields
+        );
+
+        processor.process(EventTransaction.of("test", delete));
+
+        eventually(() -> {
+            assertTrue(dataTypesRepository.getDataTypes(dbo.id).isEmpty());
+        });
     }
 
 }

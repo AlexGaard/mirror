@@ -24,7 +24,7 @@ public class RabbitMqEventSenderTest {
         RabbitMqEventSender sender = new RabbitMqEventSender(factory, "testExchange", "testQueue", serializer);
 
         for (int i = 0; i < 1000; i++) {
-            sender.send(EventTransaction.of(Collections.emptyList()));
+            sender.send(EventTransaction .of("source", Collections.emptyList()));
         }
     }
 

@@ -47,7 +47,7 @@ public class PostgresEventCollector implements EventCollector {
 
     private final PgReplication pgReplication;
 
-    private EventTransactionConsumer onDataChanged;
+    private EventTransactionConsumer onTransactionCollected;
 
     private volatile boolean isStarted = false;
 
@@ -65,18 +65,22 @@ public class PostgresEventCollector implements EventCollector {
     }
 
     @Override
-    public void initialize(EventTransactionConsumer onDataChanged) {
-        this.onDataChanged = onDataChanged;
+    public void setOnTranscationCollected(EventTransactionConsumer onTransactionCollected) {
+        if (onTransactionCollected == null) {
+            throw new IllegalArgumentException("onTransactionCollected cannot be null");
+        }
+
+        this.onTransactionCollected = onTransactionCollected;
     }
 
     @Override
-    public void start() {
+    public synchronized void start() {
         if (isStarted) {
             return;
         }
 
-        if (onDataChanged == null) {
-            throw new IllegalStateException("Must be initialized before start() can be used");
+        if (onTransactionCollected == null) {
+            throw new IllegalStateException("onTransactionCollected is missing");
         }
 
         isStarted = true;
@@ -94,7 +98,7 @@ public class PostgresEventCollector implements EventCollector {
     }
 
     @Override
-    public void stop() {
+    public synchronized void stop() {
         if (!isStarted) {
             return;
         }
@@ -110,6 +114,10 @@ public class PostgresEventCollector implements EventCollector {
         try (Connection connection = dataSource.getConnection()) {
             List<RawMessage> events = peekDataChanges(connection);
 
+            if (events.isEmpty()) {
+                return;
+            }
+
             List<List<Event>> transactions = parseChanges(events);
 
             for (int i = 0; i < transactions.size(); i++) {
@@ -124,17 +132,16 @@ public class PostgresEventCollector implements EventCollector {
                 );
 
                 try {
-                    onDataChanged.consume(transaction);
+                    onTransactionCollected.consume(transaction);
                 } catch (Exception e) {
                     // TODO: add backoff
-                    // Remove until lsn or nchanges
-//                    removeNextDataChanges(connection, i);
+                    removeNextTransactions(connection, i + 1);
                     log.error("Caught exception while sending events", e);
                     return;
                 }
             }
 
-//            removeNextDataChanges(connection, transactions.size());
+            removeNextTransactions(connection, transactions.size());
         } catch (Exception e) {
             log.error("Caught exception while retrieving data changes", e);
         }
@@ -143,7 +150,7 @@ public class PostgresEventCollector implements EventCollector {
     private List<List<Event>> parseChanges(List<RawMessage> rawMessages) {
         List<Message> messages = rawMessages
                 .stream()
-                .map(EventParser::parseEvent)
+                .map(PostgresEventCollector::parseEvent)
                 .collect(Collectors.toList());
 
 
@@ -160,7 +167,7 @@ public class PostgresEventCollector implements EventCollector {
             Message message = transaction.get(i);
 
             switch (message.type) {
-                case INSERT:
+                case INSERT: {
                     InsertMessage insert = (InsertMessage) message;
 
                     RelationMessage relation = (RelationMessage) transaction.stream()
@@ -168,11 +175,10 @@ public class PostgresEventCollector implements EventCollector {
                             .findAny()
                             .orElseThrow();
 
-                    List<Field> fields = getFields(insert, relation);
+                    List<Field> fields = getFields(insert.columns, relation);
 
                     InsertEvent insertDataChange = new InsertEvent(
                             UUID.randomUUID(),
-                            System.currentTimeMillis(),
                             relation.namespace,
                             relation.relationName,
                             fields
@@ -180,6 +186,28 @@ public class PostgresEventCollector implements EventCollector {
 
                     events.add(insertDataChange);
                     break;
+                }
+                case DELETE: {
+                    DeleteMessage delete = (DeleteMessage) message;
+
+                    RelationMessage relation = (RelationMessage) transaction.stream()
+                            .filter(t -> t instanceof RelationMessage && ((RelationMessage) t).oid == delete.relationMessageOid)
+                            .findAny()
+                            .orElseThrow();
+
+                    List<Field> fields = getFields(delete.columns, relation);
+
+                    DeleteEvent deleteEvent = new DeleteEvent(
+                            UUID.randomUUID(),
+                            relation.namespace,
+                            relation.relationName,
+                            fields
+                    );
+
+                    events.add(deleteEvent);
+
+                    break;
+                }
             }
 
         }
@@ -187,15 +215,15 @@ public class PostgresEventCollector implements EventCollector {
         return events;
     }
 
-    private List<Field> getFields(InsertMessage insert, RelationMessage relation) {
-        if (insert.columns.size() != relation.columns.size()) {
-            throw new IllegalArgumentException(format("Insert columns had different length than relation columns: %d != %d", insert.columns.size(), relation.columns.size()));
+    private List<Field> getFields(List<TupleDataColumn> columns, RelationMessage relation) {
+        if (columns.size() != relation.columns.size()) {
+            throw new IllegalArgumentException(format("Insert columns had different length than relation columns: %d != %d", columns.size(), relation.columns.size()));
         }
 
-        List<Field> fields = new ArrayList<>(insert.columns.size());
+        List<Field> fields = new ArrayList<>(columns.size());
 
-        for (int i = 0; i < insert.columns.size(); i++) {
-            TupleDataColumn insertCol = insert.columns.get(i);
+        for (int i = 0; i < columns.size(); i++) {
+            TupleDataColumn insertCol = columns.get(i);
             RelationMessage.Column relationCol = relation.columns.get(i);
 
             Object fieldData = insertCol.getData();
@@ -214,18 +242,14 @@ public class PostgresEventCollector implements EventCollector {
 
         List<Message> currentTransaction = null;
 
-        // TODO: Check if we can insert skip messages into transaction with pg_logical_emit_message
-        //  to prevent us from re-collecting message from other sources that we have just created
-
-        for (int i = 0; i < messages.size(); i++) {
-            Message message = messages.get(i);
-
+        for (Message message : messages) {
             switch (message.type) {
                 case BEGIN:
                     currentTransaction = new ArrayList<>();
                     break;
                 case RELATION:
                 case INSERT:
+                case DELETE:
                     if (currentTransaction == null) {
                         throw new IllegalStateException("No BEGIN message was found at the start of the transaction");
                     }
@@ -245,19 +269,19 @@ public class PostgresEventCollector implements EventCollector {
         return transactions;
     }
 
-    private void removeNextDataChanges(Connection connection, int changesToRemove) {
-        String sql = "SELECT 1 FROM pg_logical_slot_get_binary_changes(?, NULL, ?, 'proto_version', '1', 'publication_names', ?)";
+    private void removeNextTransactions(Connection connection, int transactionsToRemove) {
+        String sql = "SELECT 1 FROM pg_logical_slot_get_binary_changes(?, NULL, ?, 'messages', 'true', 'proto_version', '1', 'publication_names', ?)";
 
         update(connection, sql, statement -> {
             statement.setString(1, replicationSlotName);
-            statement.setInt(2, changesToRemove);
+            statement.setInt(2, transactionsToRemove);
             statement.setString(3, publicationName);
             return statement.executeUpdate();
         });
     }
 
     private List<RawMessage> peekDataChanges(Connection connection) {
-        String sql = "SELECT * FROM pg_logical_slot_peek_binary_changes(?, NULL, ?, 'proto_version', '1', 'publication_names', ?)";
+        String sql = "SELECT * FROM pg_logical_slot_peek_binary_changes(?, NULL, ?, 'messages', 'true', 'proto_version', '1', 'publication_names', ?)";
 
         return query(connection, sql, (statement) -> {
             statement.setString(1, replicationSlotName);
@@ -276,6 +300,25 @@ public class PostgresEventCollector implements EventCollector {
         byte[] data = resultSet.getBytes("data");
 
         return new RawMessage(lsn, xid, data);
+    }
+
+    private static Message parseEvent(RawMessage event) {
+        char messageType = (char) event.data[0];
+
+        switch (messageType) {
+            case 'B':
+                return BeginMessage.parse(event);
+            case 'C':
+                return CommitMessage.parse(event);
+            case 'I':
+                return InsertMessage.parse(event);
+            case 'R':
+                return RelationMessage.parse(event);
+            case 'D':
+                return DeleteMessage.parse(event);
+            default:
+                throw new IllegalArgumentException("Unknown message of type: " + messageType);
+        }
     }
 
 }

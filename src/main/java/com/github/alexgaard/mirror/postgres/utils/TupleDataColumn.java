@@ -2,6 +2,8 @@ package com.github.alexgaard.mirror.postgres.utils;
 
 import com.github.alexgaard.mirror.core.exception.ParseException;
 
+import java.util.Arrays;
+
 
 public class TupleDataColumn {
 
@@ -51,4 +53,11 @@ public class TupleDataColumn {
         }
     }
 
+    @Override
+    public String toString() {
+        return "TupleDataColumn{" +
+                "type=" + type +
+                ", data=" + (type.equals(Type.TEXT) && data != null ? new String(data) : Arrays.toString(data)) +
+                '}';
+    }
 }

@@ -1,10 +1,7 @@
 package com.github.alexgaard.mirror.postgres.processor;
 
 import com.github.alexgaard.mirror.core.EventProcessor;
-import com.github.alexgaard.mirror.core.event.Event;
-import com.github.alexgaard.mirror.core.event.EventTransaction;
-import com.github.alexgaard.mirror.core.event.Field;
-import com.github.alexgaard.mirror.core.event.InsertEvent;
+import com.github.alexgaard.mirror.core.event.*;
 import com.github.alexgaard.mirror.postgres.utils.QueryUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +49,8 @@ public class PostgresEventProcessor implements EventProcessor {
     private void handleDataChangeEvent(Event event, Connection connection) {
         if (event instanceof InsertEvent) {
             handleInsertDataChange((InsertEvent) event, connection);
+        } else if (event instanceof DeleteEvent) {
+            handleDeleteEvent((DeleteEvent) event, connection);
         }
     }
 
@@ -68,6 +67,23 @@ public class PostgresEventProcessor implements EventProcessor {
         QueryUtils.update(connection, sql, statement -> {
             for (int i = 0; i < insert.fields.size(); i++) {
                 Field field = insert.fields.get(i);
+
+                setParameter(statement, i + 1, field);
+            }
+
+            statement.executeUpdate();
+        });
+    }
+
+    private void handleDeleteEvent(DeleteEvent delete, Connection connection) {
+        String whereSql = delete.identifyingFields.stream().map(f -> f.name + " = ?")
+                .collect(Collectors.joining(", "));
+
+        String sql = format("DELETE FROM %s.%s WHERE %s", delete.namespace, delete.table, whereSql);
+
+        QueryUtils.update(connection, sql, statement -> {
+            for (int i = 0; i < delete.identifyingFields.size(); i++) {
+                Field field = delete.identifyingFields.get(i);
 
                 setParameter(statement, i + 1, field);
             }

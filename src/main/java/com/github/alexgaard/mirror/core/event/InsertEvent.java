@@ -13,8 +13,8 @@ public class InsertEvent extends Event {
 
     public final List<Field> fields;
 
-    public InsertEvent(UUID id, long createdAt, String namespace, String table, List<Field> fields) {
-        super(id, TYPE, createdAt);
+    public InsertEvent(UUID id, String namespace, String table, List<Field> fields) {
+        super(id, TYPE);
         this.namespace = namespace;
         this.table = table;
         this.fields = fields;
@@ -28,7 +28,6 @@ public class InsertEvent extends Event {
                 ", fields=" + fields +
                 ", id=" + id +
                 ", type='" + type + '\'' +
-                ", createdAt=" + createdAt +
                 '}';
     }
 }

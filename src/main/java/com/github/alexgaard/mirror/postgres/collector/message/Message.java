@@ -6,7 +6,9 @@ public abstract class Message {
         BEGIN,
         COMMIT,
         INSERT,
-        RELATION
+        RELATION,
+        DELETE,
+        UPDATE
     }
 
     public final String lsn;
