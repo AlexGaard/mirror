@@ -50,6 +50,10 @@ public class PgoutputParser {
         return c;
     }
 
+    public char peekNextChar() {
+        return getChar(pointer, data);
+    }
+
     public byte[] nextBytes(int length) {
         if (length + pointer > data.length) {
             throw new IllegalArgumentException("Length for next bytes is out of bounds");

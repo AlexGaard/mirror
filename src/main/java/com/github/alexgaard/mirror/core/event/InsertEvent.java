@@ -11,13 +11,13 @@ public class InsertEvent extends Event {
 
     public final String table;
 
-    public final List<Field> fields;
+    public final List<Field> insertFields;
 
-    public InsertEvent(UUID id, String namespace, String table, List<Field> fields) {
+    public InsertEvent(UUID id, String namespace, String table, List<Field> insertFields) {
         super(id, TYPE);
         this.namespace = namespace;
         this.table = table;
-        this.fields = fields;
+        this.insertFields = insertFields;
     }
 
     @Override
@@ -25,7 +25,7 @@ public class InsertEvent extends Event {
         return "InsertDataChange{" +
                 "namespace='" + namespace + '\'' +
                 ", table='" + table + '\'' +
-                ", fields=" + fields +
+                ", insertFields=" + insertFields +
                 ", id=" + id +
                 ", type='" + type + '\'' +
                 '}';

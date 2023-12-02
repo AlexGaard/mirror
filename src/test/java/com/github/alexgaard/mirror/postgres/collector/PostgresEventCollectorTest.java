@@ -3,7 +3,6 @@ package com.github.alexgaard.mirror.postgres.collector;
 import com.github.alexgaard.mirror.core.event.DeleteEvent;
 import com.github.alexgaard.mirror.core.event.EventTransaction;
 import com.github.alexgaard.mirror.core.event.InsertEvent;
-import com.github.alexgaard.mirror.postgres.utils.QueryUtils;
 import com.github.alexgaard.mirror.test_utils.DataTypesDbo;
 import com.github.alexgaard.mirror.test_utils.DataTypesRepository;
 import com.github.alexgaard.mirror.test_utils.DbUtils;
@@ -15,7 +14,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import javax.sql.DataSource;
-import java.sql.Types;
 import java.time.*;
 import java.util.List;
 import java.util.UUID;
@@ -93,61 +91,61 @@ public class PostgresEventCollectorTest {
 
             assertEquals("public", dataChange.namespace);
             assertEquals("data_types", dataChange.table);
-            assertEquals(18, dataChange.fields.size());
+            assertEquals(18, dataChange.insertFields.size());
 
-            assertEquals("id", dataChange.fields.get(0).name);
-            assertNotNull(dataChange.fields.get(0).value);
+            assertEquals("id", dataChange.insertFields.get(0).name);
+            assertNotNull(dataChange.insertFields.get(0).value);
 
-            assertEquals("int2_field", dataChange.fields.get(1).name);
-            assertEquals(dbo.int2_field, dataChange.fields.get(1).value);
+            assertEquals("int2_field", dataChange.insertFields.get(1).name);
+            assertEquals(dbo.int2_field, dataChange.insertFields.get(1).value);
 
-            assertEquals("int4_field", dataChange.fields.get(2).name);
-            assertEquals(dbo.int4_field, dataChange.fields.get(2).value);
+            assertEquals("int4_field", dataChange.insertFields.get(2).name);
+            assertEquals(dbo.int4_field, dataChange.insertFields.get(2).value);
 
-            assertEquals("int8_field", dataChange.fields.get(3).name);
-            assertEquals(dbo.int8_field, dataChange.fields.get(3).value);
+            assertEquals("int8_field", dataChange.insertFields.get(3).name);
+            assertEquals(dbo.int8_field, dataChange.insertFields.get(3).value);
 
-            assertEquals("float4_field", dataChange.fields.get(4).name);
-            assertEquals(dbo.float4_field, dataChange.fields.get(4).value);
+            assertEquals("float4_field", dataChange.insertFields.get(4).name);
+            assertEquals(dbo.float4_field, dataChange.insertFields.get(4).value);
 
-            assertEquals("float8_field", dataChange.fields.get(5).name);
-            assertEquals(dbo.float8_field, dataChange.fields.get(5).value);
+            assertEquals("float8_field", dataChange.insertFields.get(5).name);
+            assertEquals(dbo.float8_field, dataChange.insertFields.get(5).value);
 
-            assertEquals("uuid_field", dataChange.fields.get(6).name);
-            assertEquals(dbo.uuid_field, dataChange.fields.get(6).value);
+            assertEquals("uuid_field", dataChange.insertFields.get(6).name);
+            assertEquals(dbo.uuid_field, dataChange.insertFields.get(6).value);
 
-            assertEquals("varchar_field", dataChange.fields.get(7).name);
-            assertEquals(dbo.varchar_field, dataChange.fields.get(7).value);
+            assertEquals("varchar_field", dataChange.insertFields.get(7).name);
+            assertEquals(dbo.varchar_field, dataChange.insertFields.get(7).value);
 
-            assertEquals("text_field", dataChange.fields.get(8).name);
-            assertEquals(dbo.text_field, dataChange.fields.get(8).value);
+            assertEquals("text_field", dataChange.insertFields.get(8).name);
+            assertEquals(dbo.text_field, dataChange.insertFields.get(8).value);
 
-            assertEquals("bool_field", dataChange.fields.get(9).name);
-            assertEquals(dbo.bool_field, dataChange.fields.get(9).value);
+            assertEquals("bool_field", dataChange.insertFields.get(9).name);
+            assertEquals(dbo.bool_field, dataChange.insertFields.get(9).value);
 
-            assertEquals("bytes_field", dataChange.fields.get(10).name);
-            assertArrayEquals(dbo.bytes_field, (byte[]) dataChange.fields.get(10).value);
+            assertEquals("bytes_field", dataChange.insertFields.get(10).name);
+            assertArrayEquals(dbo.bytes_field, (byte[]) dataChange.insertFields.get(10).value);
 
-            assertEquals("char_field", dataChange.fields.get(11).name);
-            assertEquals(dbo.char_field, dataChange.fields.get(11).value);
+            assertEquals("char_field", dataChange.insertFields.get(11).name);
+            assertEquals(dbo.char_field, dataChange.insertFields.get(11).value);
 
-            assertEquals("json_field", dataChange.fields.get(12).name);
-            assertEquals(dbo.json_field, dataChange.fields.get(12).value);
+            assertEquals("json_field", dataChange.insertFields.get(12).name);
+            assertEquals(dbo.json_field, dataChange.insertFields.get(12).value);
 
-            assertEquals("jsonb_field", dataChange.fields.get(13).name);
-            assertEquals(dbo.jsonb_field, dataChange.fields.get(13).value);
+            assertEquals("jsonb_field", dataChange.insertFields.get(13).name);
+            assertEquals(dbo.jsonb_field, dataChange.insertFields.get(13).value);
 
-            assertEquals("date_field", dataChange.fields.get(14).name);
-            assertEquals(dbo.date_field, dataChange.fields.get(14).value);
+            assertEquals("date_field", dataChange.insertFields.get(14).name);
+            assertEquals(dbo.date_field, dataChange.insertFields.get(14).value);
 
-            assertEquals("time_field", dataChange.fields.get(15).name);
-            assertEquals(dbo.time_field.truncatedTo(MILLIS), ((LocalTime) dataChange.fields.get(15).value).truncatedTo(MILLIS));
+            assertEquals("time_field", dataChange.insertFields.get(15).name);
+            assertEquals(dbo.time_field.truncatedTo(MILLIS), ((LocalTime) dataChange.insertFields.get(15).value).truncatedTo(MILLIS));
 
-            assertEquals("timestamp_field", dataChange.fields.get(16).name);
-            assertEquals(dbo.timestamp_field.truncatedTo(MILLIS), ((LocalDateTime) dataChange.fields.get(16).value).truncatedTo(MILLIS));
+            assertEquals("timestamp_field", dataChange.insertFields.get(16).name);
+            assertEquals(dbo.timestamp_field.truncatedTo(MILLIS), ((LocalDateTime) dataChange.insertFields.get(16).value).truncatedTo(MILLIS));
 
-            assertEquals("timestamptz_field", dataChange.fields.get(17).name);
-            assertEquals(dbo.timestamptz_field.truncatedTo(MILLIS), ((OffsetDateTime) dataChange.fields.get(17).value).truncatedTo(MILLIS));
+            assertEquals("timestamptz_field", dataChange.insertFields.get(17).name);
+            assertEquals(dbo.timestamptz_field.truncatedTo(MILLIS), ((OffsetDateTime) dataChange.insertFields.get(17).value).truncatedTo(MILLIS));
         });
     }
 

@@ -9,16 +9,27 @@ public class UpdateEvent extends Event {
     public final String namespace;
 
     public final String table;
-    public final List<Field> identifier;
+    public final List<Field> identifyingFields;
 
-    public final List<Field> fields;
+    public final List<Field> updateFields;
 
-    public UpdateEvent(UUID id, String namespace, String table, List<Field> identifier, List<Field> fields) {
+    public UpdateEvent(UUID id, String namespace, String table, List<Field> identifyingFields, List<Field> updateFields) {
         super(id, TYPE);
         this.namespace = namespace;
         this.table = table;
-        this.identifier = identifier;
-        this.fields = fields;
+        this.identifyingFields = identifyingFields;
+        this.updateFields = updateFields;
     }
 
+    @Override
+    public String toString() {
+        return "UpdateEvent{" +
+                "namespace='" + namespace + '\'' +
+                ", table='" + table + '\'' +
+                ", identifyingFields=" + identifyingFields +
+                ", updateFields=" + updateFields +
+                ", id=" + id +
+                ", type='" + type + '\'' +
+                '}';
+    }
 }

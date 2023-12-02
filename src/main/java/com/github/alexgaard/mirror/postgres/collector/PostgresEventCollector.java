@@ -1,7 +1,7 @@
 package com.github.alexgaard.mirror.postgres.collector;
 
-import com.github.alexgaard.mirror.core.event.*;
 import com.github.alexgaard.mirror.core.EventCollector;
+import com.github.alexgaard.mirror.core.event.*;
 import com.github.alexgaard.mirror.postgres.collector.message.*;
 import com.github.alexgaard.mirror.postgres.utils.PgMetadata;
 import com.github.alexgaard.mirror.postgres.utils.TupleDataColumn;
@@ -20,9 +20,9 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.*;
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.safeRunnable;
 import static com.github.alexgaard.mirror.postgres.utils.PgFieldParser.parseFieldData;
+import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.*;
 import static java.lang.String.format;
 
 public class PostgresEventCollector implements EventCollector {
@@ -205,7 +205,31 @@ public class PostgresEventCollector implements EventCollector {
                     );
 
                     events.add(deleteEvent);
+                    break;
+                }
+                case UPDATE: {
+                    UpdateMessage update = (UpdateMessage) message;
 
+                    RelationMessage relation = (RelationMessage) transaction.stream()
+                            .filter(t -> t instanceof RelationMessage && ((RelationMessage) t).oid == update.relationMessageOid)
+                            .findAny()
+                            .orElseThrow();
+
+                    // TODO: Check relation for which field is part of key
+                    // If type = K, then use identifyingColumns, else use relation with partOfKey
+
+                    List<Field> identifyingFields = getFields(update.identifyingColumns, relation);
+                    List<Field> updatedFields = getFields(update.updatedColumns, relation);
+
+                    UpdateEvent updateEvent = new UpdateEvent(
+                            UUID.randomUUID(),
+                            relation.namespace,
+                            relation.relationName,
+                            identifyingFields,
+                            updatedFields
+                    );
+
+                    events.add(updateEvent);
                     break;
                 }
             }
@@ -242,12 +266,15 @@ public class PostgresEventCollector implements EventCollector {
 
         List<Message> currentTransaction = null;
 
+//        messages.sort(Comparator.comparingInt(m -> m.xid));
+
         for (Message message : messages) {
             switch (message.type) {
                 case BEGIN:
                     currentTransaction = new ArrayList<>();
                     break;
                 case RELATION:
+                case UPDATE:
                 case INSERT:
                 case DELETE:
                     if (currentTransaction == null) {

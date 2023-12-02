@@ -58,15 +58,15 @@ public class PostgresEventProcessor implements EventProcessor {
         // Add option for on conflict do nothing
         // Add field validation
 
-        String fields = createSqlFieldsParameters(insert.fields);
+        String fields = createSqlFieldsParameters(insert.insertFields);
 
-        String templateParams = createSqlValueTemplateParameters(insert.fields);
+        String templateParams = createSqlValueTemplateParameters(insert.insertFields);
 
         String sql = format("INSERT INTO %s.%s (%s) VALUES (%s)", insert.namespace, insert.table, fields, templateParams);
 
         QueryUtils.update(connection, sql, statement -> {
-            for (int i = 0; i < insert.fields.size(); i++) {
-                Field field = insert.fields.get(i);
+            for (int i = 0; i < insert.insertFields.size(); i++) {
+                Field field = insert.insertFields.get(i);
 
                 setParameter(statement, i + 1, field);
             }
