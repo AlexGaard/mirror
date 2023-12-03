@@ -50,11 +50,11 @@ public class PgoutputParser {
         return c;
     }
 
-    public char peekNextChar() {
-        return getChar(pointer, data);
-    }
-
     public byte[] nextBytes(int length) {
+        if (length <= 0) {
+            return new byte[0];
+        }
+
         if (length + pointer > data.length) {
             throw new IllegalArgumentException("Length for next bytes is out of bounds");
         }
@@ -83,7 +83,7 @@ public class PgoutputParser {
     }
 
     /*
-        TupleData
+    Format:
         Int16
         Number of columns.
 
@@ -141,14 +141,6 @@ public class PgoutputParser {
         }
 
         return columns;
-    }
-
-    public int getPointer() {
-        return pointer;
-    }
-
-    public void resetPointer() {
-        pointer = 0;
     }
 
 }

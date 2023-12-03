@@ -1,9 +1,12 @@
 package com.github.alexgaard.mirror.postgres.collector.message;
 
-import com.github.alexgaard.mirror.core.exception.ParseException;
 import com.github.alexgaard.mirror.postgres.utils.PgoutputParser;
 
+import static com.github.alexgaard.mirror.postgres.collector.message.MessageParser.badMessageId;
+
 public class BeginMessage extends Message {
+
+    public static final char ID = 'B';
 
     public final long transactionLsn;
 
@@ -16,33 +19,33 @@ public class BeginMessage extends Message {
     }
 
     /*
-        Format:
-            Byte1('B')
-            Identifies the message as a begin message.
+    Format:
+        Byte1('B')
+        Identifies the message as a begin message.
 
-            Int64 (XLogRecPtr)
-            The final LSN of the transaction.
+        Int64 (XLogRecPtr)
+        The final LSN of the transaction.
 
-            Int64 (TimestampTz)
-            Commit timestamp of the transaction. The value is in number of microseconds since PostgreSQL epoch (2000-01-01).
+        Int64 (TimestampTz)
+        Commit timestamp of the transaction. The value is in number of microseconds since PostgreSQL epoch (2000-01-01).
 
-            Int32 (TransactionId)
-            Xid of the transaction.
+        Int32 (TransactionId)
+        Xid of the transaction.
     */
-    public static BeginMessage parse(RawMessage event) {
-        PgoutputParser parser = new PgoutputParser(event.data);
+    public static BeginMessage parse(RawMessage msg) {
+        PgoutputParser parser = new PgoutputParser(msg.data);
 
         char type = parser.nextChar();
 
-        if (type != 'B') {
-            throw new ParseException("Bad type: " + type);
+        if (type != ID) {
+            throw badMessageId(ID, type);
         }
 
         long transactionLsn = parser.nextLong();
         long timestamp = parser.nextLong();
         int xid = parser.nextInt();
 
-        return new BeginMessage(event.lsn, xid, transactionLsn, timestamp);
+        return new BeginMessage(msg.lsn, xid, transactionLsn, timestamp);
     }
 
 }

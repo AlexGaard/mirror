@@ -8,7 +8,15 @@ public abstract class Message {
         INSERT,
         RELATION,
         DELETE,
-        UPDATE
+        UPDATE,
+
+        MESSAGE,
+
+        ORIGIN,
+
+        TYPE,
+
+        TRUNCATE
     }
 
     public final String lsn;

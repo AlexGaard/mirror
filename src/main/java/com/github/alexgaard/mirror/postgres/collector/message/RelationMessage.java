@@ -6,7 +6,11 @@ import com.github.alexgaard.mirror.postgres.utils.PgoutputParser;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.github.alexgaard.mirror.postgres.collector.message.MessageParser.badMessageId;
+
 public class RelationMessage extends Message {
+
+    public static final char ID = 'R';
 
     public final int oid;
 
@@ -28,50 +32,51 @@ public class RelationMessage extends Message {
         this.columns = columns;
     }
 
-//    Relation
-//    Byte1('R')
-//    Identifies the message as a relation message.
-//
-//    Int32 (TransactionId)
-//    Xid of the transaction (only present for streamed transactions). This field is available since protocol version 2.
-//
-//    Int32 (Oid)
-//    OID of the relation.
-//
-//    String
-//    Namespace (empty string for pg_catalog).
-//
-//    String
-//    Relation name.
-//
-//    Int8
-//    Replica identity setting for the relation (same as relreplident in pg_class).
-//
-//    Int16
-//    Number of columns.
-//
-//    Next, the following message part appears for each column included in the publication (except generated columns):
-//
-//    Int8
-//    Flags for the column. Currently can be either 0 for no flags or 1 which marks the column as part of the key.
-//
-//    String
-//    Name of the column.
-//
-//    Int32 (Oid)
-//    OID of the column's data type.
-//
-//    Int32
-//    Type modifier of the column (atttypmod).
+    /*
+    Format:
+        Byte1('R')
+        Identifies the message as a relation message.
 
+        Int32 (TransactionId)
+        Xid of the transaction (only present for streamed transactions). This field is available since protocol version 2.
 
-    public static RelationMessage parse(RawMessage event) {
-        PgoutputParser parser = new PgoutputParser(event.data);
+        Int32 (Oid)
+        OID of the relation.
+
+        String
+        Namespace (empty string for pg_catalog).
+
+        String
+        Relation name.
+
+        Int8
+        Replica identity setting for the relation (same as relreplident in pg_class).
+
+        Int16
+        Number of columns.
+
+        Next, the following message part appears for each column included in the publication (except generated columns):
+
+        Int8
+        Flags for the column. Currently can be either 0 for no flags or 1 which marks the column as part of the key.
+
+        String
+        Name of the column.
+
+        Int32 (Oid)
+        OID of the column's data type.
+
+        Int32
+        Type modifier of the column (atttypmod).
+    */
+
+    public static RelationMessage parse(RawMessage msg) {
+        PgoutputParser parser = new PgoutputParser(msg.data);
 
         char type = parser.nextChar();
 
-        if (type != 'R') {
-            throw new ParseException("Bad type: " + type);
+        if (type != ID) {
+            throw badMessageId(ID, type);
         }
 
         int oid = parser.nextInt();
@@ -86,7 +91,7 @@ public class RelationMessage extends Message {
 
         List<Column> columns = parseColumns(numCols, parser);
 
-        return new RelationMessage(event.lsn, event.xid, oid, namespace, relationName, replicaId, columns);
+        return new RelationMessage(msg.lsn, msg.xid, oid, namespace, relationName, replicaId, columns);
     }
 
     private static List<Column> parseColumns(int numCols, PgoutputParser parser) {

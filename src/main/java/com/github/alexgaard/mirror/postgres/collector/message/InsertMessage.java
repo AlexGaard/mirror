@@ -6,7 +6,11 @@ import com.github.alexgaard.mirror.postgres.utils.TupleDataColumn;
 
 import java.util.List;
 
+import static com.github.alexgaard.mirror.postgres.collector.message.MessageParser.badMessageId;
+
 public class InsertMessage extends Message {
+
+    public static final char ID = 'I';
 
     public final int relationMessageOid;
 
@@ -18,31 +22,31 @@ public class InsertMessage extends Message {
         this.columns = columns;
     }
 
-//    Insert
-//    Byte1('I')
-//    Identifies the message as an insert message.
-//
-//    Int32 (TransactionId)
-//    Xid of the transaction (only present for streamed transactions). This field is available since protocol version 2.
-//
-//    Int32 (Oid)
-//    OID of the relation corresponding to the ID in the relation message.
-//
-//    Byte1('N')
-//    Identifies the following TupleData message as a new tuple.
-//
-//    TupleData
-//    TupleData message part representing the contents of new tuple.
+    /*
+    Format:
+        Byte1('I')
+        Identifies the message as an insert message.
 
-//    Ex: 0x49 00 00 40 15 4E 00 01 74 00 00 00 02 34 32
+        Int32 (TransactionId)
+        Xid of the transaction (only present for streamed transactions). This field is available since protocol version 2.
 
-    public static InsertMessage parse(RawMessage event) {
-        PgoutputParser parser = new PgoutputParser(event.data);
+        Int32 (Oid)
+        OID of the relation corresponding to the ID in the relation message.
+
+        Byte1('N')
+        Identifies the following TupleData message as a new tuple.
+
+        TupleData
+        TupleData message part representing the contents of new tuple.
+    */
+
+    public static InsertMessage parse(RawMessage msg) {
+        PgoutputParser parser = new PgoutputParser(msg.data);
 
         char type = parser.nextChar();
 
-        if (type != 'I') {
-            throw new ParseException("Bad type: " + type);
+        if (type != ID) {
+            throw badMessageId(ID, type);
         }
 
         int oid = parser.nextInt();
@@ -52,7 +56,7 @@ public class InsertMessage extends Message {
 
         List<TupleDataColumn> columns = parser.nextTupleData();
 
-        return new InsertMessage(event.lsn, event.xid, oid, columns);
+        return new InsertMessage(msg.lsn, msg.xid, oid, columns);
     }
 
 }

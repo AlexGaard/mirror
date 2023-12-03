@@ -9,11 +9,11 @@ public class BeginMessageTest {
 
     @Test
     public void shouldParseRawEvent() {
-        RawMessage event = RawEventCreator.create("42000000000158A6800002ACF61ADF0BBE000002F6");
+        RawMessage rawMessage = RawEventCreator.create("42000000000158A6800002ACF61ADF0BBE000002F6");
 
-        BeginMessage beginEvent = BeginMessage.parse(event);
+        BeginMessage message = BeginMessage.parse(rawMessage);
 
-        assertEquals(753122966178750L, beginEvent.timestamp);
+        assertEquals(753122966178750L, message.timestamp);
     }
 
 }

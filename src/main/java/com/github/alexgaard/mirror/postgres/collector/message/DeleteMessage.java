@@ -6,7 +6,11 @@ import com.github.alexgaard.mirror.postgres.utils.TupleDataColumn;
 
 import java.util.List;
 
+import static com.github.alexgaard.mirror.postgres.collector.message.MessageParser.badMessageId;
+
 public class DeleteMessage extends Message {
+
+    public static final char ID = 'D';
 
     public final int relationMessageOid;
 
@@ -22,7 +26,7 @@ public class DeleteMessage extends Message {
     }
 
     /*
-      Delete
+    Format:
         Byte1('D')
         Identifies the message as a delete message.
 
@@ -44,13 +48,13 @@ public class DeleteMessage extends Message {
         The Delete message may contain either a 'K' message part or an 'O' message part, but never both of them.
      */
 
-    public static DeleteMessage parse(RawMessage event) {
-        PgoutputParser parser = new PgoutputParser(event.data);
+    public static DeleteMessage parse(RawMessage msg) {
+        PgoutputParser parser = new PgoutputParser(msg.data);
 
         char type = parser.nextChar();
 
-        if (type != 'D') {
-            throw new ParseException("Bad type: " + type);
+        if (type != ID) {
+            throw badMessageId(ID, type);
         }
 
         int relationOid = parser.nextInt();
@@ -59,7 +63,7 @@ public class DeleteMessage extends Message {
 
         List<TupleDataColumn> columns = parser.nextTupleData();
 
-        return new DeleteMessage(event.lsn, event.xid, relationOid, replicaIdentityType, columns);
+        return new DeleteMessage(msg.lsn, msg.xid, relationOid, replicaIdentityType, columns);
     }
 
     @Override

@@ -7,7 +7,11 @@ import com.github.alexgaard.mirror.postgres.utils.TupleDataColumn;
 import java.util.Collections;
 import java.util.List;
 
+import static com.github.alexgaard.mirror.postgres.collector.message.MessageParser.badMessageId;
+
 public class UpdateMessage extends Message {
+
+    public static final char ID = 'U';
 
     public final int relationMessageOid;
 
@@ -33,7 +37,7 @@ public class UpdateMessage extends Message {
     }
 
     /*
-    Update
+    Format:
         Byte1('U')
         Identifies the message as an update message.
 
@@ -61,13 +65,13 @@ public class UpdateMessage extends Message {
         The Update message may contain either a 'K' message part or an 'O' message part or neither of them, but never both of them.
     */
 
-    public static UpdateMessage parse(RawMessage event) {
-        PgoutputParser parser = new PgoutputParser(event.data);
+    public static UpdateMessage parse(RawMessage msg) {
+        PgoutputParser parser = new PgoutputParser(msg.data);
 
         char type = parser.nextChar();
 
-        if (type != 'U') {
-            throw new ParseException("Bad type: " + type);
+        if (type != ID) {
+            throw badMessageId(ID, type);
         }
 
         int relationOid = parser.nextInt();
@@ -83,8 +87,8 @@ public class UpdateMessage extends Message {
         List<TupleDataColumn> updatedColumns = parser.nextTupleData();
 
         return new UpdateMessage(
-                event.lsn,
-                event.xid,
+                msg.lsn,
+                msg.xid,
                 relationOid,
                 replicaIdentityType,
                 identifyingColumns,

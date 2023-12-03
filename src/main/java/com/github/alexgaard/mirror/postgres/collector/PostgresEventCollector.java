@@ -18,6 +18,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.safeRunnable;
@@ -37,7 +38,7 @@ public class PostgresEventCollector implements EventCollector {
 
     private final Map<Integer, PgMetadata.PgDataType> pgDataTypes = new HashMap<>();
 
-    private final int maxChangesPrPoll = 100;
+    private final int maxChangesPrPoll = 500;
 
     private final DataSource dataSource;
 
@@ -46,6 +47,8 @@ public class PostgresEventCollector implements EventCollector {
     private final Duration dataChangePollInterval;
 
     private final PgReplication pgReplication;
+
+    private final AtomicInteger lastWalMessageCount = new AtomicInteger(0);
 
     private EventTransactionConsumer onTransactionCollected;
 
@@ -110,18 +113,35 @@ public class PostgresEventCollector implements EventCollector {
         }
     }
 
+    public int getLastWalMessageCount() {
+        return lastWalMessageCount.get();
+    }
+
     private void checkForDataChanges() {
         try (Connection connection = dataSource.getConnection()) {
-            List<RawMessage> events = peekDataChanges(connection);
+            List<RawMessage> rawMessages = peekDataChanges(connection);
 
-            if (events.isEmpty()) {
+            lastWalMessageCount.set(rawMessages.size());
+
+            if (rawMessages.isEmpty()) {
                 return;
             }
 
-            List<List<Event>> transactions = parseChanges(events);
+            List<Message> messages = rawMessages
+                    .stream()
+                    .map(MessageParser::parse)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+
+            List<List<Event>> transactions = splitIntoTransactions(messages)
+                    .stream()
+                    .map(this::toEventTransaction)
+                    .collect(Collectors.toList());
 
             for (int i = 0; i < transactions.size(); i++) {
                 List<Event> transactionEvents = transactions.get(i);
+
+                // TODO: if transaction contains skip message then continue;
 
                 var transaction = new EventTransaction(
                         UUID.randomUUID(),
@@ -143,34 +163,21 @@ public class PostgresEventCollector implements EventCollector {
 
             removeNextTransactions(connection, transactions.size());
         } catch (Exception e) {
-            log.error("Caught exception while retrieving data changes", e);
+            log.error("Caught exception while retrieving WAL messages", e);
         }
     }
 
-    private List<List<Event>> parseChanges(List<RawMessage> rawMessages) {
-        List<Message> messages = rawMessages
-                .stream()
-                .map(PostgresEventCollector::parseEvent)
-                .collect(Collectors.toList());
+    private List<Event> toEventTransaction(List<Message> msgTransaction) {
+        List<Event> eventTransaction = new ArrayList<>();
 
-
-        return createTransactions(messages)
-                .stream()
-                .map(this::toDataChangeTransaction)
-                .collect(Collectors.toList());
-    }
-
-    private List<Event> toDataChangeTransaction(List<Message> transaction) {
-        List<Event> events = new ArrayList<>();
-
-        for (int i = 0; i < transaction.size(); i++) {
-            Message message = transaction.get(i);
+        for (int i = 0; i < msgTransaction.size(); i++) {
+            Message message = msgTransaction.get(i);
 
             switch (message.type) {
                 case INSERT: {
                     InsertMessage insert = (InsertMessage) message;
 
-                    RelationMessage relation = (RelationMessage) transaction.stream()
+                    RelationMessage relation = (RelationMessage) msgTransaction.stream()
                             .filter(t -> t instanceof RelationMessage && ((RelationMessage) t).oid == insert.relationMessageOid)
                             .findAny()
                             .orElseThrow();
@@ -184,13 +191,13 @@ public class PostgresEventCollector implements EventCollector {
                             fields
                     );
 
-                    events.add(insertDataChange);
+                    eventTransaction.add(insertDataChange);
                     break;
                 }
                 case DELETE: {
                     DeleteMessage delete = (DeleteMessage) message;
 
-                    RelationMessage relation = (RelationMessage) transaction.stream()
+                    RelationMessage relation = (RelationMessage) msgTransaction.stream()
                             .filter(t -> t instanceof RelationMessage && ((RelationMessage) t).oid == delete.relationMessageOid)
                             .findAny()
                             .orElseThrow();
@@ -204,13 +211,13 @@ public class PostgresEventCollector implements EventCollector {
                             fields
                     );
 
-                    events.add(deleteEvent);
+                    eventTransaction.add(deleteEvent);
                     break;
                 }
                 case UPDATE: {
                     UpdateMessage update = (UpdateMessage) message;
 
-                    RelationMessage relation = (RelationMessage) transaction.stream()
+                    RelationMessage relation = (RelationMessage) msgTransaction.stream()
                             .filter(t -> t instanceof RelationMessage && ((RelationMessage) t).oid == update.relationMessageOid)
                             .findAny()
                             .orElseThrow();
@@ -229,14 +236,14 @@ public class PostgresEventCollector implements EventCollector {
                             updatedFields
                     );
 
-                    events.add(updateEvent);
+                    eventTransaction.add(updateEvent);
                     break;
                 }
             }
 
         }
 
-        return events;
+        return eventTransaction;
     }
 
     private List<Field> getFields(List<TupleDataColumn> columns, RelationMessage relation) {
@@ -261,7 +268,7 @@ public class PostgresEventCollector implements EventCollector {
         return fields;
     }
 
-    private static List<List<Message>> createTransactions(List<Message> messages) {
+    private static List<List<Message>> splitIntoTransactions(List<Message> messages) {
         List<List<Message>> transactions = new ArrayList<>();
 
         List<Message> currentTransaction = null;
@@ -327,25 +334,6 @@ public class PostgresEventCollector implements EventCollector {
         byte[] data = resultSet.getBytes("data");
 
         return new RawMessage(lsn, xid, data);
-    }
-
-    private static Message parseEvent(RawMessage event) {
-        char messageType = (char) event.data[0];
-
-        switch (messageType) {
-            case 'B':
-                return BeginMessage.parse(event);
-            case 'C':
-                return CommitMessage.parse(event);
-            case 'I':
-                return InsertMessage.parse(event);
-            case 'R':
-                return RelationMessage.parse(event);
-            case 'D':
-                return DeleteMessage.parse(event);
-            default:
-                throw new IllegalArgumentException("Unknown message of type: " + messageType);
-        }
     }
 
 }

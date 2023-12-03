@@ -14,16 +14,16 @@ public class RelationMessageTest {
         // Insert single column with value of 42
         RawMessage rawMessage = RawEventCreator.create("52000040157075626C696300706572736F6E32006400010169640000000017FFFFFFFF");
 
-        RelationMessage event = RelationMessage.parse(rawMessage);
+        RelationMessage message = RelationMessage.parse(rawMessage);
 
-        assertEquals(16405, event.oid);
-        assertEquals("public", event.namespace);
-        assertEquals("person2", event.relationName);
-        assertEquals(1, event.columns.size());
-        assertEquals(23, event.columns.get(0).dataOid);
-        assertEquals(-1, event.columns.get(0).typeModifier);
-        assertEquals("id", event.columns.get(0).name);
-        assertTrue(event.columns.get(0).partOfKey);
+        assertEquals(16405, message.oid);
+        assertEquals("public", message.namespace);
+        assertEquals("person2", message.relationName);
+        assertEquals(1, message.columns.size());
+        assertEquals(23, message.columns.get(0).dataOid);
+        assertEquals(-1, message.columns.get(0).typeModifier);
+        assertEquals("id", message.columns.get(0).name);
+        assertTrue(message.columns.get(0).partOfKey);
     }
 
 }

@@ -12,13 +12,13 @@ public class DeleteMessageTest {
     public void shouldParseRawEvent() {
         RawMessage rawMessage = RawEventCreator.create("440000400D4B00047400000001316E6E6E");
 
-        DeleteMessage event = DeleteMessage.parse(rawMessage);
+        DeleteMessage message = DeleteMessage.parse(rawMessage);
 
-        assertEquals(16397, event.relationMessageOid);
-        assertEquals('K', event.replicaIdentity);
-        assertEquals(4, event.columns.size());
-        assertEquals(TupleDataColumn.Type.TEXT, event.columns.get(0).type);
-        assertEquals("1", event.columns.get(0).getData());
+        assertEquals(16397, message.relationMessageOid);
+        assertEquals('K', message.replicaIdentity);
+        assertEquals(4, message.columns.size());
+        assertEquals(TupleDataColumn.Type.TEXT, message.columns.get(0).type);
+        assertEquals("1", message.columns.get(0).getData());
     }
 
 }
