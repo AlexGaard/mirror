@@ -20,6 +20,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.safeRunnable;
@@ -36,15 +37,19 @@ public class PostgresEventCollector implements EventCollector {
 
     private final String publicationName = "mirror";
 
+    private final int maxChangesPrPoll = 500;
+
+    private final long backoffIncreaseMs = 1000;
+
+    private final long maxBackoffMs = 10_000;
+
+    private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
+
     private final String sourceName;
 
     private final Map<Integer, PgMetadata.PgDataType> pgDataTypes = new HashMap<>();
 
-    private final int maxChangesPrPoll = 500;
-
     private final DataSource dataSource;
-
-    private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
 
     private final Duration dataChangePollInterval;
 
@@ -55,6 +60,8 @@ public class PostgresEventCollector implements EventCollector {
     private EventTransactionConsumer onTransactionCollected;
 
     private volatile boolean isStarted = false;
+
+    private long currentBackoffMs = 0;
 
     private ScheduledFuture<?> pollSchedule;
 
@@ -157,14 +164,18 @@ public class PostgresEventCollector implements EventCollector {
                 try {
                     onTransactionCollected.consume(transaction);
                 } catch (Exception e) {
-                    // TODO: add backoff
                     removeNextTransactions(connection, i + 1);
                     log.error("Caught exception while sending events", e);
+
+                    currentBackoffMs = Math.min(currentBackoffMs + backoffIncreaseMs, maxBackoffMs);
+                    Thread.sleep(currentBackoffMs);
+
                     return;
                 }
             }
 
             removeNextTransactions(connection, transactions.size());
+            currentBackoffMs = 0;
         } catch (Exception e) {
             log.error("Caught exception while retrieving WAL messages", e);
         }
