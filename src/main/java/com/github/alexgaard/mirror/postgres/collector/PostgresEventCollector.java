@@ -4,6 +4,7 @@ import com.github.alexgaard.mirror.core.EventCollector;
 import com.github.alexgaard.mirror.core.event.*;
 import com.github.alexgaard.mirror.postgres.collector.message.*;
 import com.github.alexgaard.mirror.postgres.utils.PgMetadata;
+import com.github.alexgaard.mirror.postgres.utils.PgTimestamp;
 import com.github.alexgaard.mirror.postgres.utils.TupleDataColumn;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.safeRunnable;
 import static com.github.alexgaard.mirror.postgres.utils.PgFieldParser.parseFieldData;
+import static com.github.alexgaard.mirror.postgres.utils.PgTimestamp.pgTimestampToEpochMs;
 import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.*;
 import static java.lang.String.format;
 
@@ -133,20 +135,21 @@ public class PostgresEventCollector implements EventCollector {
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
 
-            List<List<Event>> transactions = splitIntoTransactions(messages)
-                    .stream()
-                    .map(this::toEventTransaction)
-                    .collect(Collectors.toList());
+            List<List<Message>> transactions = splitIntoTransactions(messages);
 
             for (int i = 0; i < transactions.size(); i++) {
-                List<Event> transactionEvents = transactions.get(i);
+                List<Message> transactionMessages = transactions.get(i);
+                List<Event> transactionEvents = toEventTransaction(messages);
 
-                // TODO: if transaction contains skip message then continue;
+                CommitMessage commit = (CommitMessage) transactionMessages.stream()
+                        .filter(m -> m.type.equals(Message.Type.COMMIT))
+                        .findAny()
+                        .orElseThrow(() -> new IllegalStateException("Commit message is missing from transaction"));
 
                 var transaction = new EventTransaction(
                         UUID.randomUUID(),
                         sourceName,
-                        System.currentTimeMillis(), // TODO: get from BeginMessage
+                        pgTimestampToEpochMs(commit.commitTimestamp),
                         System.currentTimeMillis(),
                         transactionEvents
                 );
@@ -182,7 +185,7 @@ public class PostgresEventCollector implements EventCollector {
                             .findAny()
                             .orElseThrow();
 
-                    List<Field> fields = getFields(insert.columns, relation);
+                    List<Field> fields = toFields(insert.columns, relation);
 
                     InsertEvent insertDataChange = new InsertEvent(
                             UUID.randomUUID(),
@@ -202,7 +205,7 @@ public class PostgresEventCollector implements EventCollector {
                             .findAny()
                             .orElseThrow();
 
-                    List<Field> fields = getFields(delete.columns, relation);
+                    List<Field> fields = toFields(delete.columns, relation);
 
                     DeleteEvent deleteEvent = new DeleteEvent(
                             UUID.randomUUID(),
@@ -225,8 +228,8 @@ public class PostgresEventCollector implements EventCollector {
                     // TODO: Check relation for which field is part of key
                     // If type = K, then use identifyingColumns, else use relation with partOfKey
 
-                    List<Field> identifyingFields = getFields(update.identifyingColumns, relation);
-                    List<Field> updatedFields = getFields(update.updatedColumns, relation);
+                    List<Field> identifyingFields = toFields(update.identifyingColumns, relation);
+                    List<Field> updatedFields = toFields(update.updatedColumns, relation);
 
                     UpdateEvent updateEvent = new UpdateEvent(
                             UUID.randomUUID(),
@@ -246,9 +249,9 @@ public class PostgresEventCollector implements EventCollector {
         return eventTransaction;
     }
 
-    private List<Field> getFields(List<TupleDataColumn> columns, RelationMessage relation) {
-        if (columns.size() != relation.columns.size()) {
-            throw new IllegalArgumentException(format("Insert columns had different length than relation columns: %d != %d", columns.size(), relation.columns.size()));
+    private List<Field> toFields(List<TupleDataColumn> columns, RelationMessage relation) {
+        if (columns.size() > relation.columns.size()) {
+            throw new IllegalArgumentException(format("Tuple data columns length (%d) must be equal or less than relation columns (%d)", columns.size(), relation.columns.size()));
         }
 
         List<Field> fields = new ArrayList<>(columns.size());
@@ -268,49 +271,14 @@ public class PostgresEventCollector implements EventCollector {
         return fields;
     }
 
-    private static List<List<Message>> splitIntoTransactions(List<Message> messages) {
-        List<List<Message>> transactions = new ArrayList<>();
-
-        List<Message> currentTransaction = null;
-
-//        messages.sort(Comparator.comparingInt(m -> m.xid));
-
-        for (Message message : messages) {
-            switch (message.type) {
-                case BEGIN:
-                    currentTransaction = new ArrayList<>();
-                    break;
-                case RELATION:
-                case UPDATE:
-                case INSERT:
-                case DELETE:
-                    if (currentTransaction == null) {
-                        throw new IllegalStateException("No BEGIN message was found at the start of the transaction");
-                    }
-
-                    currentTransaction.add(message);
-                    break;
-                case COMMIT:
-                    if (currentTransaction == null) {
-                        throw new IllegalStateException("No BEGIN message was found at the start of the transaction");
-                    }
-
-                    transactions.add(currentTransaction);
-                    break;
-            }
-        }
-
-        return transactions;
-    }
-
     private void removeNextTransactions(Connection connection, int transactionsToRemove) {
         String sql = "SELECT 1 FROM pg_logical_slot_get_binary_changes(?, NULL, ?, 'messages', 'true', 'proto_version', '1', 'publication_names', ?)";
 
-        update(connection, sql, statement -> {
+        query(connection, sql, statement -> {
             statement.setString(1, replicationSlotName);
             statement.setInt(2, transactionsToRemove);
             statement.setString(3, publicationName);
-            return statement.executeUpdate();
+            statement.executeQuery();
         });
     }
 
@@ -326,6 +294,13 @@ public class PostgresEventCollector implements EventCollector {
 
             return resultList(resultSet, PostgresEventCollector::toRawEvent);
         });
+    }
+
+    private static List<List<Message>> splitIntoTransactions(List<Message> messages) {
+        return new ArrayList<>(messages.stream()
+                .sorted(Comparator.comparingInt(m -> m.xid))
+                .collect(Collectors.groupingBy((m -> m.xid)))
+                .values());
     }
 
     private static RawMessage toRawEvent(ResultSet resultSet) throws SQLException {

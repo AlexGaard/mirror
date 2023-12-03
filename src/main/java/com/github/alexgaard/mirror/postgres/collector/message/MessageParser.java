@@ -32,6 +32,8 @@ public class MessageParser {
                 return TruncateMessage.parse(message);
             case OriginMessage.ID:
                 return OriginMessage.parse(message);
+            case UpdateMessage.ID:
+                return UpdateMessage.parse(message);
             default:
                 return null;
         }
