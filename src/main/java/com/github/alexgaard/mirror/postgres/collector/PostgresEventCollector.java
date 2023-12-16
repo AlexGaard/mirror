@@ -14,6 +14,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -33,9 +34,9 @@ public class PostgresEventCollector implements EventCollector {
 
     private final Logger log = LoggerFactory.getLogger(PostgresEventCollector.class);
 
-    private final String replicationSlotName = "mirror";
+    private final String replicationSlotName;
 
-    private final String publicationName = "mirror";
+    private final String publicationName;
 
     private final int maxChangesPrPoll = 500;
 
@@ -70,6 +71,8 @@ public class PostgresEventCollector implements EventCollector {
         this.dataSource = dataSource;
         this.dataChangePollInterval = pollInterval;
         this.pgReplication = pgReplication;
+        this.replicationSlotName = pgReplication.getReplicationSlotName();
+        this.publicationName = pgReplication.getPublicationName();
     }
 
     public PostgresEventCollector(String sourceName, DataSource dataSource, PgReplication pgReplication) {
@@ -156,9 +159,9 @@ public class PostgresEventCollector implements EventCollector {
                 var transaction = new EventTransaction(
                         UUID.randomUUID(),
                         sourceName,
-                        pgTimestampToEpochMs(commit.commitTimestamp),
-                        System.currentTimeMillis(),
-                        transactionEvents
+                        transactionEvents,
+                        OffsetDateTime.now(), //TODO: pgTimestampToEpochMs(commit.commitTimestamp),
+                        OffsetDateTime.now()
                 );
 
                 try {
@@ -200,6 +203,7 @@ public class PostgresEventCollector implements EventCollector {
 
                     InsertEvent insertDataChange = new InsertEvent(
                             UUID.randomUUID(),
+                            OffsetDateTime.now(),
                             relation.namespace,
                             relation.relationName,
                             fields
@@ -220,6 +224,7 @@ public class PostgresEventCollector implements EventCollector {
 
                     DeleteEvent deleteEvent = new DeleteEvent(
                             UUID.randomUUID(),
+                            OffsetDateTime.now(),
                             relation.namespace,
                             relation.relationName,
                             fields
@@ -244,6 +249,7 @@ public class PostgresEventCollector implements EventCollector {
 
                     UpdateEvent updateEvent = new UpdateEvent(
                             UUID.randomUUID(),
+                            OffsetDateTime.now(),
                             relation.namespace,
                             relation.relationName,
                             identifyingFields,
@@ -276,7 +282,7 @@ public class PostgresEventCollector implements EventCollector {
 
             Object parsedData = parseFieldData(type, fieldData);
 
-            fields.add(new Field(relationCol.name, parsedData, type));
+            fields.add(new Field(relationCol.name, type, parsedData));
         }
 
         return fields;

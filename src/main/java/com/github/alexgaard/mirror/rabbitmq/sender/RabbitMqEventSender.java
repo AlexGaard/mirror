@@ -1,6 +1,5 @@
 package com.github.alexgaard.mirror.rabbitmq.sender;
 
-import com.github.alexgaard.mirror.core.event.Event;
 import com.github.alexgaard.mirror.core.EventSender;
 import com.github.alexgaard.mirror.core.event.EventTransaction;
 import com.github.alexgaard.mirror.core.serde.Serializer;
@@ -11,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.concurrent.TimeoutException;
 
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.softenException;
@@ -22,7 +20,7 @@ public class RabbitMqEventSender implements EventSender {
 
     private final ConnectionFactory factory;
     private final String exchangeName;
-    private final String queueName;
+    private final String routingKey;
 
     private final Serializer serializer;
 
@@ -30,10 +28,10 @@ public class RabbitMqEventSender implements EventSender {
 
     private volatile Channel channel;
 
-    public RabbitMqEventSender(ConnectionFactory factory, String exchangeName, String queueName, Serializer serializer) {
+    public RabbitMqEventSender(ConnectionFactory factory, String exchangeName, String routingKey, Serializer serializer) {
         this.factory = factory;
         this.exchangeName = exchangeName;
-        this.queueName = queueName;
+        this.routingKey = routingKey;
         this.serializer = serializer;
     }
 
@@ -51,8 +49,6 @@ public class RabbitMqEventSender implements EventSender {
         if (channel == null || !channel.isOpen()) {
             try {
                 channel = connection.createChannel();
-                // TODO: Dont do this?
-                channel.queueDeclare(queueName, true, false, false, null);
             } catch (IOException e) {
                 log.error("Failed to send transaction {}. Unable to open channel", transaction.id, e);
                 throw softenException(e);
@@ -61,7 +57,7 @@ public class RabbitMqEventSender implements EventSender {
 
         try {
             String message = serializer.serialize(transaction);
-            channel.basicPublish(exchangeName, queueName, null, message.getBytes());
+            channel.basicPublish(exchangeName, routingKey, null, message.getBytes());
         } catch (IOException e) {
             throw softenException(e);
         }

@@ -55,6 +55,7 @@ public class PgFieldParser {
             case TIME:
                 return LocalTime.parse((String) fieldData);
             case TIMESTAMP:
+                // TODO: Precision is variable, ex: 2023-12-16 12:32:36.62664
                 return LocalDateTime.parse((String) fieldData, localDateTimeFormatter);
             case TIMESTAMP_TZ:
                 return OffsetDateTime.parse((String) fieldData, offsetDateTimeFormatter);

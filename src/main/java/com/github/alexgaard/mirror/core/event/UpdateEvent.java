@@ -1,5 +1,6 @@
 package com.github.alexgaard.mirror.core.event;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,8 +14,8 @@ public class UpdateEvent extends Event {
 
     public final List<Field> updateFields;
 
-    public UpdateEvent(UUID id, String namespace, String table, List<Field> identifyingFields, List<Field> updateFields) {
-        super(id, TYPE);
+    public UpdateEvent(UUID id, OffsetDateTime createdAt, String namespace, String table, List<Field> identifyingFields, List<Field> updateFields) {
+        super(id, TYPE, createdAt);
         this.namespace = namespace;
         this.table = table;
         this.identifyingFields = identifyingFields;

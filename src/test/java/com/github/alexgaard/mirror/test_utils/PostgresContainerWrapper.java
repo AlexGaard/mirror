@@ -6,14 +6,15 @@ import org.testcontainers.containers.PostgreSQLContainer;
 
 import javax.sql.DataSource;
 
-public class PostgresContainer {
+public class PostgresContainerWrapper {
 
     private final PostgreSQLContainer<?> container;
 
     private DataSource dataSource;
 
-    public PostgresContainer() {
-        container = new PostgreSQLContainer<>("16.0-alpine3.18");
+    public PostgresContainerWrapper() {
+        container = new PostgreSQLContainer<>("postgres:16.0-alpine3.18")
+                .withCommand("postgres", "-c", "wal_level=logical");
     }
 
     public void start() {
@@ -35,7 +36,7 @@ public class PostgresContainer {
         config.setMaximumPoolSize(3);
         config.setMinimumIdle(1);
         config.setUsername(container.getUsername());
-        config.setPassword(config.getPassword());
+        config.setPassword(container.getPassword());
 
         return new HikariDataSource(config);
     }

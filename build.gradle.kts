@@ -1,6 +1,7 @@
 val sl4jVersion = "2.0.7"
+val jacksonVersion = "2.16.0"
 val junitVersion = "5.9.2"
-val testContainersVersion = "1.19.1"
+val testContainersVersion = "1.19.3"
 
 plugins {
 	jacoco
@@ -30,8 +31,11 @@ dependencies {
 	implementation("org.postgresql:postgresql:42.6.0")
 	implementation("com.zaxxer:HikariCP:5.1.0")
 
-	testImplementation("com.fasterxml.jackson.core:jackson-databind:2.16.0")
+	implementation("com.fasterxml.jackson.core:jackson-databind:$jacksonVersion")
+	implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:$jacksonVersion")
+
 	testImplementation("org.testcontainers:testcontainers:$testContainersVersion")
+	testImplementation("org.testcontainers:rabbitmq:$testContainersVersion")
 	testImplementation("org.testcontainers:postgresql:$testContainersVersion")
 	testImplementation("org.testcontainers:junit-jupiter:1.19.1")
 	testImplementation("org.slf4j:slf4j-simple:$sl4jVersion")

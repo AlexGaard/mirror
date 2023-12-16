@@ -4,17 +4,17 @@ import com.github.alexgaard.mirror.core.event.DeleteEvent;
 import com.github.alexgaard.mirror.core.event.EventTransaction;
 import com.github.alexgaard.mirror.core.event.InsertEvent;
 import com.github.alexgaard.mirror.core.event.UpdateEvent;
+import com.github.alexgaard.mirror.postgres.utils.QueryUtils;
 import com.github.alexgaard.mirror.test_utils.DataTypesDbo;
 import com.github.alexgaard.mirror.test_utils.DataTypesRepository;
 import com.github.alexgaard.mirror.test_utils.DbUtils;
+import com.github.alexgaard.mirror.test_utils.PostgresSingletonContainer;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import javax.sql.DataSource;
+import java.sql.Types;
 import java.time.*;
 import java.util.List;
 import java.util.UUID;
@@ -24,14 +24,9 @@ import static com.github.alexgaard.mirror.test_utils.AsyncUtils.eventually;
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static org.junit.jupiter.api.Assertions.*;
 
-@Testcontainers
 public class PostgresEventCollectorTest {
 
-    @Container
-    public static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16.0-alpine3.18")
-            .withCommand("postgres", "-c", "wal_level=logical");
-
-    private static DataSource dataSource;
+    private static final DataSource dataSource = PostgresSingletonContainer.getDataSource();
 
     private static PostgresEventCollector collector;
 
@@ -41,12 +36,15 @@ public class PostgresEventCollectorTest {
 
     @BeforeAll
     public static void setup() {
-        dataSource = DbUtils.createDataSource(postgres);
         dataTypesRepository = new DataTypesRepository(dataSource);
 
         DbUtils.initTables(dataSource);
 
+        String name = "mirror_" + ((int) (Math.random() * 10_000));
+
         PgReplication pgReplication = new PgReplication()
+                .replicationSlotName(name)
+                .publicationName(name)
                 .allTables();
 
         collector = new PostgresEventCollector("test", dataSource, Duration.ofMillis(100), pgReplication);
@@ -65,6 +63,7 @@ public class PostgresEventCollectorTest {
         collector.start();
 
         DataTypesDbo dbo = new DataTypesDbo();
+        dbo.id = (int) (Math.random() * 10000);
         dbo.int2_field = 5;
         dbo.int4_field = 100;
         dbo.int8_field = 48L;
@@ -92,6 +91,7 @@ public class PostgresEventCollectorTest {
 
             assertEquals("public", dataChange.namespace);
             assertEquals("data_types", dataChange.table);
+
             assertEquals(18, dataChange.insertFields.size());
 
             assertEquals("id", dataChange.insertFields.get(0).name);
@@ -172,6 +172,141 @@ public class PostgresEventCollectorTest {
             assertEquals("public", deleteEvent.namespace);
             assertEquals(18, deleteEvent.identifyingFields.size());
             assertTrue(deleteEvent.identifyingFields.stream().anyMatch(f -> f.name.equals("id") && ((Integer) 42).equals(f.value)));
+        });
+    }
+
+    private void insertDataTypes(DataTypesDbo dbo) {
+        String sql = "insert into data_types (" +
+                "id," +
+                "int2_field," +
+                "int4_field," +
+                "int8_field," +
+                "float4_field," +
+                "float8_field," +
+                "uuid_field," +
+                "varchar_field," +
+                "text_field," +
+                "bool_field," +
+                "bytes_field," +
+                "char_field," +
+                "json_field," +
+                "jsonb_field," +
+                "date_field," +
+                "time_field," +
+                "timestamp_field," +
+                "timestamptz_field" +
+                ") values (?,?,?,?,?,?,?::uuid,?,?,?,?,?,?::json,?::jsonb,?,?,?,?)";
+
+        QueryUtils.update(dataSource, sql, statement -> {
+            if (dbo.id != null) {
+                statement.setInt(1, dbo.id);
+            } else {
+                statement.setNull(1, Types.INTEGER);
+            }
+
+            if (dbo.int2_field != null) {
+                statement.setShort(2, dbo.int2_field);
+            } else {
+                statement.setNull(2, Types.SMALLINT);
+            }
+
+            if (dbo.int4_field != null) {
+                statement.setInt(3, dbo.int4_field);
+            } else {
+                statement.setNull(3, Types.INTEGER);
+            }
+
+            if (dbo.int8_field != null) {
+                statement.setLong(4, dbo.int8_field);
+            } else {
+                statement.setNull(4, Types.BIGINT);
+            }
+
+            if (dbo.float4_field != null) {
+                statement.setFloat(5, dbo.float4_field);
+            } else {
+                statement.setNull(5, Types.FLOAT);
+            }
+
+            if (dbo.float8_field != null) {
+                statement.setDouble(6, dbo.float8_field);
+            } else {
+                statement.setNull(6, Types.DOUBLE);
+            }
+
+            if (dbo.uuid_field != null) {
+                statement.setString(7, dbo.uuid_field.toString());
+            } else {
+                statement.setNull(7, Types.VARCHAR);
+            }
+
+            if (dbo.varchar_field != null) {
+                statement.setString(8, dbo.varchar_field);
+            } else {
+                statement.setNull(8, Types.VARCHAR);
+            }
+
+            if (dbo.text_field != null) {
+                statement.setString(9, dbo.text_field);
+            } else {
+                statement.setNull(9, Types.VARCHAR);
+            }
+
+            if (dbo.bool_field != null) {
+                statement.setBoolean(10, dbo.bool_field);
+            } else {
+                statement.setNull(10, Types.BOOLEAN);
+            }
+
+            if (dbo.bytes_field != null) {
+                statement.setBytes(11, dbo.bytes_field);
+            } else {
+                statement.setNull(11, Types.BINARY);
+            }
+
+            if (dbo.char_field != null) {
+                statement.setString(12, dbo.char_field.toString());
+            } else {
+                statement.setNull(12, Types.CHAR);
+            }
+
+            if (dbo.json_field != null) {
+                statement.setString(13, dbo.json_field);
+            } else {
+                statement.setNull(13, Types.VARCHAR);
+            }
+
+            if (dbo.jsonb_field != null) {
+                statement.setString(14, dbo.jsonb_field);
+            } else {
+                statement.setNull(14, Types.VARCHAR);
+            }
+
+            if (dbo.date_field != null) {
+                statement.setObject(15, dbo.date_field);
+            } else {
+                statement.setNull(15, Types.DATE);
+            }
+
+            if (dbo.time_field != null) {
+                statement.setObject(16, dbo.time_field);
+            } else {
+                statement.setNull(16, Types.TIME);
+            }
+
+            if (dbo.timestamp_field != null) {
+                statement.setObject(17, dbo.timestamp_field);
+            } else {
+                statement.setNull(17, Types.TIMESTAMP);
+            }
+
+            if (dbo.timestamptz_field != null) {
+                statement.setObject(18, dbo.timestamptz_field);
+            } else {
+                statement.setNull(18, Types.TIME_WITH_TIMEZONE);
+            }
+
+            statement.executeUpdate();
         });
     }
 

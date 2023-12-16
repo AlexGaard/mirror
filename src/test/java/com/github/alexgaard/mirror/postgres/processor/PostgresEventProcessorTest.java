@@ -51,27 +51,28 @@ public class PostgresEventProcessorTest {
         int id = 42;
 
         List<Field> fields = new ArrayList<>();
-        fields.add(new Field("id", id, Field.Type.INT32));
-        fields.add(new Field("int2_field", (short) 5, Field.Type.INT16));
-        fields.add(new Field("int4_field", 42, Field.Type.INT32));
-        fields.add(new Field("int8_field", 153L, Field.Type.INT64));
-        fields.add(new Field("float4_field", 1.5423f, Field.Type.FLOAT));
-        fields.add(new Field("float8_field", 33.3099, Field.Type.DOUBLE));
-        fields.add(new Field("uuid_field", UUID.randomUUID(), Field.Type.UUID));
-        fields.add(new Field("varchar_field", "test", Field.Type.STRING));
-        fields.add(new Field("text_field", "test2", Field.Type.STRING));
-        fields.add(new Field("bool_field", true, Field.Type.BOOLEAN));
-        fields.add(new Field("bytes_field", new byte[]{5, 87, 3}, Field.Type.BYTES));
-        fields.add(new Field("char_field", 's', Field.Type.CHAR));
-        fields.add(new Field("json_field", "{\"json\": true}", Field.Type.JSON));
-        fields.add(new Field("jsonb_field", "{\"json\": true}", Field.Type.JSON));
-        fields.add(new Field("date_field", LocalDate.now(), Field.Type.DATE));
-        fields.add(new Field("time_field", LocalTime.now(), Field.Type.TIME));
-        fields.add(new Field("timestamp_field", LocalDateTime.now(), Field.Type.TIMESTAMP));
-        fields.add(new Field("timestamptz_field", OffsetDateTime.now(Clock.systemUTC()), Field.Type.TIMESTAMP_TZ));
+        fields.add(new Field("id", Field.Type.INT32, id));
+        fields.add(new Field("int2_field", Field.Type.INT16, (short) 5));
+        fields.add(new Field("int4_field",Field.Type.INT32, 42));
+        fields.add(new Field("int8_field",Field.Type.INT64, 153L));
+        fields.add(new Field("float4_field",Field.Type.FLOAT, 1.5423f));
+        fields.add(new Field("float8_field",Field.Type.DOUBLE, 33.3099));
+        fields.add(new Field("uuid_field",Field.Type.UUID, UUID.randomUUID()));
+        fields.add(new Field("varchar_field",Field.Type.STRING, "test"));
+        fields.add(new Field("text_field",Field.Type.STRING, "test2"));
+        fields.add(new Field("bool_field",Field.Type.BOOLEAN, true));
+        fields.add(new Field("bytes_field",Field.Type.BYTES, new byte[]{5, 87, 3}));
+        fields.add(new Field("char_field",Field.Type.CHAR, 's'));
+        fields.add(new Field("json_field",Field.Type.JSON, "{\"json\": true}"));
+        fields.add(new Field("jsonb_field",Field.Type.JSON, "{\"json\": true}"));
+        fields.add(new Field("date_field",Field.Type.DATE, LocalDate.now()));
+        fields.add(new Field("time_field",Field.Type.TIME, LocalTime.now()));
+        fields.add(new Field("timestamp_field",Field.Type.TIMESTAMP, LocalDateTime.now()));
+        fields.add(new Field("timestamptz_field",Field.Type.TIMESTAMP_TZ, OffsetDateTime.now(Clock.systemUTC())));
 
         InsertEvent insert = new InsertEvent(
                 UUID.randomUUID(),
+                OffsetDateTime.now(),
                 "public",
                 "data_types",
                 fields
@@ -116,10 +117,11 @@ public class PostgresEventProcessorTest {
         PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
 
         List<Field> fields = new ArrayList<>();
-        fields.add(new Field("id", dbo.id, Field.Type.INT32));
+        fields.add(new Field("id", Field.Type.INT32, dbo.id));
 
         DeleteEvent delete = new DeleteEvent(
                 UUID.randomUUID(),
+                OffsetDateTime.now(),
                 "public",
                 "data_types",
                 fields

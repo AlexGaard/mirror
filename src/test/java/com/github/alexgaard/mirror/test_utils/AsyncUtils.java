@@ -3,19 +3,20 @@ package com.github.alexgaard.mirror.test_utils;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
+import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.softenException;
 import static java.lang.String.format;
 
 public class AsyncUtils {
 
-    public static void eventually(Runnable runnable) {
+    public static void eventually(UnsafeRunnable runnable) {
         eventually(Duration.ofSeconds(10), Duration.ofMillis(50), runnable);
     }
 
-    public static void eventually(Duration until, Runnable runnable) {
+    public static void eventually(Duration until, UnsafeRunnable runnable) {
         eventually(until, Duration.ofMillis(50), runnable);
     }
 
-    public static void eventually(Duration until, Duration interval, Runnable runnable) {
+    public static void eventually(Duration until, Duration interval, UnsafeRunnable runnable) {
         LocalDateTime untilTime = LocalDateTime.now().plusNanos(until.toNanos());
 
         Throwable throwable = null;
@@ -35,7 +36,11 @@ public class AsyncUtils {
             }
         }
 
-        throw new AssertionError(format("Expected to complete within %s", until), throwable);
+        throw softenException(throwable);
+    }
+
+    public interface UnsafeRunnable {
+        void run() throws Exception;
     }
 
 }

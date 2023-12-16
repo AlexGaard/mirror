@@ -1,5 +1,6 @@
 package com.github.alexgaard.mirror.core.event;
 
+import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -9,9 +10,18 @@ public abstract class Event {
 
     public final String type;
 
-    protected Event(UUID id, String type) {
+    public final OffsetDateTime createdAt;
+
+    public Event() {
+        this.id = null;
+        this.type = null;
+        this.createdAt = null;
+    }
+
+    protected Event(UUID id, String type, OffsetDateTime createdAt) {
         this.id = id;
         this.type = type;
+        this.createdAt = createdAt;
     }
 
     @Override

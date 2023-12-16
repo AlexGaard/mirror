@@ -25,14 +25,19 @@ public class Field {
 
     public final String name;
 
+    public final Type type;
     public final Object value;
 
-    public final Type type;
+    public Field() {
+        this.name = null;
+        this.type = null;
+        this.value = null;
+    }
 
-    public Field(String name, Object value, Type type) {
+    public Field(String name, Type type, Object value) {
         this.name = name;
-        this.value = value;
         this.type = type;
+        this.value = value;
     }
 
     @Override
@@ -52,8 +57,8 @@ public class Field {
     public String toString() {
         return "Field{" +
                 "name='" + name + '\'' +
-                ", value=" + value +
                 ", type=" + type +
+                ", value=" + value +
                 '}';
     }
 

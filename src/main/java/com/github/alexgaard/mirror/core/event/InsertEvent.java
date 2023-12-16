@@ -1,5 +1,6 @@
 package com.github.alexgaard.mirror.core.event;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -13,21 +14,18 @@ public class InsertEvent extends Event {
 
     public final List<Field> insertFields;
 
-    public InsertEvent(UUID id, String namespace, String table, List<Field> insertFields) {
-        super(id, TYPE);
-        this.namespace = namespace;
-        this.table = table;
-        this.insertFields = insertFields;
+    public InsertEvent() {
+        super(null, TYPE, null);
+        this.namespace = null;
+        this.table = null;
+        this.insertFields = null;
     }
 
-    @Override
-    public String toString() {
-        return "InsertDataChange{" +
-                "namespace='" + namespace + '\'' +
-                ", table='" + table + '\'' +
-                ", insertFields=" + insertFields +
-                ", id=" + id +
-                ", type='" + type + '\'' +
-                '}';
+    public InsertEvent(UUID id, OffsetDateTime createdAt, String namespace, String table, List<Field> fields) {
+        super(id, TYPE, createdAt);
+        this.namespace = namespace;
+        this.table = table;
+        this.insertFields = fields;
     }
+
 }

@@ -55,6 +55,14 @@ public class PgReplication {
         return this;
     }
 
+    public String getReplicationSlotName() {
+        return replicationSlotName;
+    }
+
+    public String getPublicationName() {
+        return publicationName;
+    }
+
     public synchronized void setup(DataSource dataSource) {
         if (!hasReplicationSlot(dataSource, replicationSlotName)) {
             log.info("Creating new replication slot {}", replicationSlotName);

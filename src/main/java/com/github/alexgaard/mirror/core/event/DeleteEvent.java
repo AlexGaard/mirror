@@ -1,5 +1,6 @@
 package com.github.alexgaard.mirror.core.event;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -11,11 +12,11 @@ public class DeleteEvent extends Event {
     public final String table;
     public final List<Field> identifyingFields;
 
-    public DeleteEvent(UUID id, String namespace, String table, List<Field> identifyingFields) {
-        super(id, TYPE);
+    public DeleteEvent(UUID id, OffsetDateTime createdAt, String namespace, String table, List<Field> identifier) {
+        super(id, TYPE, createdAt);
         this.namespace = namespace;
         this.table = table;
-        this.identifyingFields = identifyingFields;
+        this.identifyingFields = identifier;
     }
 
 }
