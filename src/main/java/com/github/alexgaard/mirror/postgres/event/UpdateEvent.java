@@ -1,23 +1,27 @@
-package com.github.alexgaard.mirror.core.event;
+package com.github.alexgaard.mirror.postgres.event;
+
 
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
-public class UpdateEvent extends Event {
+public class UpdateEvent extends PostgresEvent {
 
-    public final static String TYPE = "delete";
-    public final String namespace;
+    public final static String TYPE = "update";
 
-    public final String table;
     public final List<Field> identifyingFields;
 
     public final List<Field> updateFields;
 
-    public UpdateEvent(UUID id, OffsetDateTime createdAt, String namespace, String table, List<Field> identifyingFields, List<Field> updateFields) {
-        super(id, TYPE, createdAt);
-        this.namespace = namespace;
-        this.table = table;
+    // Used for deserialization
+    public UpdateEvent() {
+        super(null, TYPE, null, null, -1, null);
+        this.identifyingFields = null;
+        this.updateFields = null;
+    }
+
+    public UpdateEvent(UUID id, String namespace, String table, int transactionId, List<Field> identifyingFields, List<Field> updateFields, OffsetDateTime createdAt) {
+        super(id, TYPE, namespace, table, transactionId, createdAt);
         this.identifyingFields = identifyingFields;
         this.updateFields = updateFields;
     }

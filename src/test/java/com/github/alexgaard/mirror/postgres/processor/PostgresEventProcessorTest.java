@@ -1,10 +1,9 @@
 package com.github.alexgaard.mirror.postgres.processor;
 
-import com.github.alexgaard.mirror.core.event.DeleteEvent;
+import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
 import com.github.alexgaard.mirror.core.event.EventTransaction;
-import com.github.alexgaard.mirror.core.event.Field;
-import com.github.alexgaard.mirror.core.event.InsertEvent;
-import com.github.alexgaard.mirror.postgres.utils.QueryUtils;
+import com.github.alexgaard.mirror.postgres.event.Field;
+import com.github.alexgaard.mirror.postgres.event.InsertEvent;
 import com.github.alexgaard.mirror.test_utils.DataTypesDbo;
 import com.github.alexgaard.mirror.test_utils.DataTypesRepository;
 import com.github.alexgaard.mirror.test_utils.DbUtils;
@@ -15,13 +14,11 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import javax.sql.DataSource;
-import java.sql.*;
 import java.time.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.resultList;
 import static com.github.alexgaard.mirror.test_utils.AsyncUtils.eventually;
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static org.junit.jupiter.api.Assertions.*;
@@ -72,10 +69,11 @@ public class PostgresEventProcessorTest {
 
         InsertEvent insert = new InsertEvent(
                 UUID.randomUUID(),
-                OffsetDateTime.now(),
                 "public",
                 "data_types",
-                fields
+                0,
+                fields,
+                OffsetDateTime.now()
         );
 
         processor.process(EventTransaction.of("test", insert));
@@ -121,10 +119,11 @@ public class PostgresEventProcessorTest {
 
         DeleteEvent delete = new DeleteEvent(
                 UUID.randomUUID(),
-                OffsetDateTime.now(),
                 "public",
                 "data_types",
-                fields
+                0,
+                fields,
+                OffsetDateTime.now()
         );
 
         processor.process(EventTransaction.of("test", delete));

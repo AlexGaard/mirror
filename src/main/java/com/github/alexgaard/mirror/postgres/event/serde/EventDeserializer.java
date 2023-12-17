@@ -1,13 +1,14 @@
-package com.github.alexgaard.mirror.serde;
+package com.github.alexgaard.mirror.postgres.event.serde;
 
-import com.github.alexgaard.mirror.core.event.DeleteEvent;
-import com.github.alexgaard.mirror.core.event.InsertEvent;
+import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
+import com.github.alexgaard.mirror.postgres.event.InsertEvent;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 import com.github.alexgaard.mirror.core.event.Event;
+import com.github.alexgaard.mirror.postgres.event.UpdateEvent;
 
 import java.io.IOException;
 
@@ -31,6 +32,9 @@ public class EventDeserializer extends StdDeserializer<Event> {
         switch (type) {
             case InsertEvent.TYPE: {
                 return mapper.treeToValue(node, InsertEvent.class);
+            }
+            case UpdateEvent.TYPE: {
+                return mapper.treeToValue(node, UpdateEvent.class);
             }
             case DeleteEvent.TYPE: {
                 return mapper.treeToValue(node, DeleteEvent.class);

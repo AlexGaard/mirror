@@ -1,6 +1,6 @@
 package com.github.alexgaard.mirror.postgres.utils;
 
-import com.github.alexgaard.mirror.core.event.Field;
+import com.github.alexgaard.mirror.postgres.event.Field;
 import com.github.alexgaard.mirror.core.exception.NotYetImplementedException;
 
 import javax.sql.DataSource;

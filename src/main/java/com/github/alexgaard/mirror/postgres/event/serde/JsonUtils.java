@@ -1,4 +1,4 @@
-package com.github.alexgaard.mirror.serde;
+package com.github.alexgaard.mirror.postgres.event.serde;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.github.alexgaard.mirror.core.event.Event;
 import com.github.alexgaard.mirror.core.event.EventTransaction;
-import com.github.alexgaard.mirror.core.event.Field;
+import com.github.alexgaard.mirror.postgres.event.Field;
 import com.github.alexgaard.mirror.core.serde.Deserializer;
 import com.github.alexgaard.mirror.core.serde.Serializer;
 

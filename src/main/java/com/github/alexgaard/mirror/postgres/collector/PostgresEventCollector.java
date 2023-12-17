@@ -3,8 +3,11 @@ package com.github.alexgaard.mirror.postgres.collector;
 import com.github.alexgaard.mirror.core.EventCollector;
 import com.github.alexgaard.mirror.core.event.*;
 import com.github.alexgaard.mirror.postgres.collector.message.*;
+import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
+import com.github.alexgaard.mirror.postgres.event.Field;
+import com.github.alexgaard.mirror.postgres.event.InsertEvent;
+import com.github.alexgaard.mirror.postgres.event.UpdateEvent;
 import com.github.alexgaard.mirror.postgres.utils.PgMetadata;
-import com.github.alexgaard.mirror.postgres.utils.PgTimestamp;
 import com.github.alexgaard.mirror.postgres.utils.TupleDataColumn;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,12 +24,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.safeRunnable;
 import static com.github.alexgaard.mirror.postgres.utils.PgFieldParser.parseFieldData;
-import static com.github.alexgaard.mirror.postgres.utils.PgTimestamp.pgTimestampToEpochMs;
 import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.*;
 import static java.lang.String.format;
 
@@ -203,10 +204,11 @@ public class PostgresEventCollector implements EventCollector {
 
                     InsertEvent insertDataChange = new InsertEvent(
                             UUID.randomUUID(),
-                            OffsetDateTime.now(),
                             relation.namespace,
                             relation.relationName,
-                            fields
+                            insert.xid,
+                            fields,
+                            OffsetDateTime.now()
                     );
 
                     eventTransaction.add(insertDataChange);
@@ -224,10 +226,11 @@ public class PostgresEventCollector implements EventCollector {
 
                     DeleteEvent deleteEvent = new DeleteEvent(
                             UUID.randomUUID(),
-                            OffsetDateTime.now(),
                             relation.namespace,
                             relation.relationName,
-                            fields
+                            delete.xid,
+                            fields,
+                            OffsetDateTime.now()
                     );
 
                     eventTransaction.add(deleteEvent);
@@ -249,11 +252,12 @@ public class PostgresEventCollector implements EventCollector {
 
                     UpdateEvent updateEvent = new UpdateEvent(
                             UUID.randomUUID(),
-                            OffsetDateTime.now(),
                             relation.namespace,
                             relation.relationName,
+                            update.xid,
                             identifyingFields,
-                            updatedFields
+                            updatedFields,
+                            OffsetDateTime.now()
                     );
 
                     eventTransaction.add(updateEvent);

@@ -1,14 +1,11 @@
-package com.github.alexgaard.mirror.serde;
+package com.github.alexgaard.mirror.postgres.event.serde;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
-import com.github.alexgaard.mirror.core.event.DeleteEvent;
-import com.github.alexgaard.mirror.core.event.Event;
-import com.github.alexgaard.mirror.core.event.Field;
-import com.github.alexgaard.mirror.core.event.InsertEvent;
+import com.github.alexgaard.mirror.postgres.event.Field;
 
 import java.io.IOException;
 
@@ -41,6 +38,8 @@ public class FieldDeserializer extends StdDeserializer<Field> {
                 return valueNode.asDouble();
             case INT32:
                 return valueNode.asInt();
+            case STRING:
+                return valueNode.asText();
             default:
                 throw new IllegalArgumentException("Missing deserialization implementation for field of type: " + type);
         }
