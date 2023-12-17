@@ -14,12 +14,16 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Types;
 import java.time.*;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.insertSkipTransactionMessage;
 import static com.github.alexgaard.mirror.test_utils.AsyncUtils.eventually;
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static org.junit.jupiter.api.Assertions.*;
@@ -175,138 +179,30 @@ public class PostgresEventCollectorTest {
         });
     }
 
-    private void insertDataTypes(DataTypesDbo dbo) {
-        String sql = "insert into data_types (" +
-                "id," +
-                "int2_field," +
-                "int4_field," +
-                "int8_field," +
-                "float4_field," +
-                "float8_field," +
-                "uuid_field," +
-                "varchar_field," +
-                "text_field," +
-                "bool_field," +
-                "bytes_field," +
-                "char_field," +
-                "json_field," +
-                "jsonb_field," +
-                "date_field," +
-                "time_field," +
-                "timestamp_field," +
-                "timestamptz_field" +
-                ") values (?,?,?,?,?,?,?::uuid,?,?,?,?,?,?::json,?::jsonb,?,?,?,?)";
+    @Test
+    public void should_skip_transaction_with_skip_message() {
+        collector.start();
 
-        QueryUtils.update(dataSource, sql, statement -> {
-            if (dbo.id != null) {
-                statement.setInt(1, dbo.id);
-            } else {
-                statement.setNull(1, Types.INTEGER);
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+            try (Statement statement = connection.createStatement()) {
+                statement.execute("insert into data_types (id) values (89)");
             }
 
-            if (dbo.int2_field != null) {
-                statement.setShort(2, dbo.int2_field);
-            } else {
-                statement.setNull(2, Types.SMALLINT);
-            }
+            insertSkipTransactionMessage(connection);
+            connection.commit();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
-            if (dbo.int4_field != null) {
-                statement.setInt(3, dbo.int4_field);
-            } else {
-                statement.setNull(3, Types.INTEGER);
-            }
+        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
+            statement.execute("insert into data_types (id) values (90)");
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
-            if (dbo.int8_field != null) {
-                statement.setLong(4, dbo.int8_field);
-            } else {
-                statement.setNull(4, Types.BIGINT);
-            }
-
-            if (dbo.float4_field != null) {
-                statement.setFloat(5, dbo.float4_field);
-            } else {
-                statement.setNull(5, Types.FLOAT);
-            }
-
-            if (dbo.float8_field != null) {
-                statement.setDouble(6, dbo.float8_field);
-            } else {
-                statement.setNull(6, Types.DOUBLE);
-            }
-
-            if (dbo.uuid_field != null) {
-                statement.setString(7, dbo.uuid_field.toString());
-            } else {
-                statement.setNull(7, Types.VARCHAR);
-            }
-
-            if (dbo.varchar_field != null) {
-                statement.setString(8, dbo.varchar_field);
-            } else {
-                statement.setNull(8, Types.VARCHAR);
-            }
-
-            if (dbo.text_field != null) {
-                statement.setString(9, dbo.text_field);
-            } else {
-                statement.setNull(9, Types.VARCHAR);
-            }
-
-            if (dbo.bool_field != null) {
-                statement.setBoolean(10, dbo.bool_field);
-            } else {
-                statement.setNull(10, Types.BOOLEAN);
-            }
-
-            if (dbo.bytes_field != null) {
-                statement.setBytes(11, dbo.bytes_field);
-            } else {
-                statement.setNull(11, Types.BINARY);
-            }
-
-            if (dbo.char_field != null) {
-                statement.setString(12, dbo.char_field.toString());
-            } else {
-                statement.setNull(12, Types.CHAR);
-            }
-
-            if (dbo.json_field != null) {
-                statement.setString(13, dbo.json_field);
-            } else {
-                statement.setNull(13, Types.VARCHAR);
-            }
-
-            if (dbo.jsonb_field != null) {
-                statement.setString(14, dbo.jsonb_field);
-            } else {
-                statement.setNull(14, Types.VARCHAR);
-            }
-
-            if (dbo.date_field != null) {
-                statement.setObject(15, dbo.date_field);
-            } else {
-                statement.setNull(15, Types.DATE);
-            }
-
-            if (dbo.time_field != null) {
-                statement.setObject(16, dbo.time_field);
-            } else {
-                statement.setNull(16, Types.TIME);
-            }
-
-            if (dbo.timestamp_field != null) {
-                statement.setObject(17, dbo.timestamp_field);
-            } else {
-                statement.setNull(17, Types.TIMESTAMP);
-            }
-
-            if (dbo.timestamptz_field != null) {
-                statement.setObject(18, dbo.timestamptz_field);
-            } else {
-                statement.setNull(18, Types.TIME_WITH_TIMEZONE);
-            }
-
-            statement.executeUpdate();
+        eventually(() -> {
+            assertEquals(1, collectedTransactions.size());
         });
     }
 
