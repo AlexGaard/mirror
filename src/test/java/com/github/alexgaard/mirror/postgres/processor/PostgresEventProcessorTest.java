@@ -17,6 +17,7 @@ import javax.sql.DataSource;
 import java.time.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static com.github.alexgaard.mirror.test_utils.AsyncUtils.eventually;
@@ -131,6 +132,41 @@ public class PostgresEventProcessorTest {
         eventually(() -> {
             assertTrue(dataTypesRepository.getDataTypes(dbo.id).isEmpty());
         });
+    }
+
+    @Test
+    public void should_skip_old_events() {
+        PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
+
+        int id1 = 67;
+        int id2 = 68;
+
+        InsertEvent insert1 = new InsertEvent(
+                UUID.randomUUID(),
+                "public",
+                "data_types",
+                10,
+                List.of(new Field("id", Field.Type.INT32, id1)),
+                OffsetDateTime.now()
+        );
+
+        InsertEvent insert2 = new InsertEvent(
+                UUID.randomUUID(),
+                "public",
+                "data_types",
+                9,
+                List.of(new Field("id", Field.Type.INT32, id2)),
+                OffsetDateTime.now()
+        );
+
+        processor.process(EventTransaction.of("test", insert1));
+        processor.process(EventTransaction.of("test", insert2));
+
+        Optional<DataTypesDbo> dataTypes1 = dataTypesRepository.getDataTypes(id1);
+        Optional<DataTypesDbo> dataTypes2 = dataTypesRepository.getDataTypes(id2);
+
+        assertTrue(dataTypes1.isPresent());
+        assertTrue(dataTypes2.isEmpty());
     }
 
 }

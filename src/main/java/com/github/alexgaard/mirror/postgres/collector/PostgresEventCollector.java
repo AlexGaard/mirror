@@ -27,6 +27,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.safeRunnable;
+import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.MESSAGE_PREFIX;
+import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.SKIP_TRANSACTION_MSG;
 import static com.github.alexgaard.mirror.postgres.utils.PgFieldParser.parseFieldData;
 import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.*;
 import static java.lang.String.format;
@@ -150,6 +152,11 @@ public class PostgresEventCollector implements EventCollector {
 
             for (int i = 0; i < transactions.size(); i++) {
                 List<Message> transactionMessages = transactions.get(i);
+
+                if (shouldTransactionBeSkipped(transactionMessages)) {
+                    continue;
+                }
+
                 List<Event> transactionEvents = toEventTransaction(messages);
 
                 CommitMessage commit = (CommitMessage) transactionMessages.stream()
@@ -330,6 +337,19 @@ public class PostgresEventCollector implements EventCollector {
         byte[] data = resultSet.getBytes("data");
 
         return new RawMessage(lsn, xid, data);
+    }
+
+    private static boolean shouldTransactionBeSkipped(List<Message> transactionMessages) {
+        return transactionMessages.stream().anyMatch(m -> {
+            if (!(m instanceof LogicalDecodingMessage)) {
+               return false;
+            }
+
+            LogicalDecodingMessage logicalDecodingMessage = (LogicalDecodingMessage) m;
+
+            return MESSAGE_PREFIX.equals(logicalDecodingMessage.prefix) &&
+                    SKIP_TRANSACTION_MSG.equals(new String(logicalDecodingMessage.content));
+        });
     }
 
 }

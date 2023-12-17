@@ -5,6 +5,7 @@ import com.github.alexgaard.mirror.core.event.*;
 import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
 import com.github.alexgaard.mirror.postgres.event.Field;
 import com.github.alexgaard.mirror.postgres.event.InsertEvent;
+import com.github.alexgaard.mirror.postgres.event.PostgresEvent;
 import com.github.alexgaard.mirror.postgres.utils.QueryUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,12 +14,14 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.softenException;
+import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.insertSkipTransactionMessage;
 import static com.github.alexgaard.mirror.postgres.utils.SqlFieldType.sqlFieldType;
 import static java.lang.String.format;
 
@@ -28,6 +31,8 @@ public class PostgresEventProcessor implements EventProcessor {
 
     private final AtomicBoolean originalAutoCommit = new AtomicBoolean();
 
+    private final Map<String, Integer> lastSourceTransactionId = new HashMap<>();
+
     private final DataSource dataSource;
 
     public PostgresEventProcessor(DataSource dataSource) {
@@ -36,14 +41,24 @@ public class PostgresEventProcessor implements EventProcessor {
 
     @Override
     public synchronized void process(EventTransaction transaction) {
-        // TODO: Keep track of xid, skip if xid is older
+        int lastTransactionId = lastSourceTransactionId.getOrDefault(transaction.sourceName, 0);
+
+        List<Event> filteredEvents = filterNewEvents(transaction.events, lastTransactionId);
+
+        if (filteredEvents.isEmpty()) {
+            return;
+        }
 
         try (Connection connection = dataSource.getConnection()) {
             originalAutoCommit.set(connection.getAutoCommit());
             connection.setAutoCommit(false);
 
             try {
-                transaction.events.forEach(e -> handleDataChangeEvent(e, connection));
+                filteredEvents.forEach(e -> handleDataChangeEvent(e, connection));
+
+                insertSkipTransactionMessage(connection);
+
+                lastSourceTransactionId.put(transaction.sourceName, findLastTransactionId(filteredEvents));
             } catch (Exception e) {
                 log.error("Caught exception while processing events", e);
                 connection.rollback();
@@ -134,6 +149,36 @@ public class PostgresEventProcessor implements EventProcessor {
                 int sqlType = sqlFieldType(field.type);
                 statement.setObject(parameterIdx, field.value, sqlType);
         }
+    }
+
+    private static List<Event> filterNewEvents(List<Event> events, int lastTransactionId) {
+        return events.stream().filter(e -> {
+            if (e instanceof PostgresEvent) {
+                var pgEvent = (PostgresEvent) e;
+
+                boolean isNew = pgEvent.transactionId > lastTransactionId;
+
+                if (!isNew) {
+                    log.warn("Skipping event with old transaction id {}. Last transaction id was {}", pgEvent.transactionId, lastTransactionId);
+                }
+
+                return isNew;
+            }
+
+            return true;
+        }).collect(Collectors.toList());
+    }
+
+    private static Integer findLastTransactionId(List<Event> events) {
+        for (int i = events.size() - 1; i >= 0; i--) {
+            Event event = events.get(i);
+
+            if (event instanceof PostgresEvent) {
+                return ((PostgresEvent) event).transactionId;
+            }
+        }
+
+        return 0;
     }
 
 }
