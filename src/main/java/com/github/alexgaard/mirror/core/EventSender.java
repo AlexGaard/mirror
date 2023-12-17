@@ -4,6 +4,6 @@ import com.github.alexgaard.mirror.core.event.EventTransaction;
 
 public interface EventSender {
 
-    void send(EventTransaction transaction);
+    Result send(EventTransaction transaction);
 
 }

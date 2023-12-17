@@ -9,7 +9,7 @@ import com.github.alexgaard.mirror.postgres.event.Field;
 
 import java.io.IOException;
 
-public class FieldDeserializer extends StdDeserializer<Field> {
+public class FieldDeserializer extends StdDeserializer<Field<?>> {
 
     public FieldDeserializer() {
         this(null);
@@ -20,26 +20,25 @@ public class FieldDeserializer extends StdDeserializer<Field> {
     }
 
     @Override
-    public Field deserialize(JsonParser jsonParser, DeserializationContext ctx) throws IOException {
+    public Field<?> deserialize(JsonParser jsonParser, DeserializationContext ctx) throws IOException {
         final ObjectMapper mapper = (ObjectMapper) jsonParser.getCodec();
         final JsonNode node = mapper.readTree(jsonParser);
 
+        String name = node.get("name").asText();
         Field.Type type = Field.Type.valueOf(node.get("type").asText());
         JsonNode valueNode = node.get("value");
 
-        Object mappedValue = mapValue(type, valueNode);
-
-        return new Field(node.get("name").asText(), type, mappedValue);
+        return toField(name, type, valueNode);
     }
 
-    private static Object mapValue(Field.Type type, JsonNode valueNode) {
+    private static Field<?> toField(String name, Field.Type type, JsonNode valueNode) {
         switch (type) {
             case FLOAT:
-                return valueNode.asDouble();
+                return new Field.Float(name, (float) valueNode.asDouble());
             case INT32:
-                return valueNode.asInt();
-            case STRING:
-                return valueNode.asText();
+                return new Field.Int32(name, valueNode.asInt());
+            case TEXT:
+                return new Field.Text(name, valueNode.asText());
             default:
                 throw new IllegalArgumentException("Missing deserialization implementation for field of type: " + type);
         }

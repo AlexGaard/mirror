@@ -1,7 +1,9 @@
 package com.github.alexgaard.mirror.core.event;
 
+import com.github.alexgaard.mirror.core.Result;
+
 public interface EventTransactionConsumer {
 
-    void consume(EventTransaction transaction);
+    Result consume(EventTransaction transaction);
 
 }

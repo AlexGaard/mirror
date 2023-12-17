@@ -1,6 +1,7 @@
 package com.github.alexgaard.mirror.postgres.collector;
 
 import com.github.alexgaard.mirror.core.EventCollector;
+import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.event.*;
 import com.github.alexgaard.mirror.postgres.collector.message.*;
 import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
@@ -26,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.runWithResult;
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.safeRunnable;
 import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.MESSAGE_PREFIX;
 import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.SKIP_TRANSACTION_MSG;
@@ -83,7 +85,7 @@ public class PostgresEventCollector implements EventCollector {
     }
 
     @Override
-    public void setOnTranscationCollected(EventTransactionConsumer onTransactionCollected) {
+    public void setOnTransactionCollected(EventTransactionConsumer onTransactionCollected) {
         if (onTransactionCollected == null) {
             throw new IllegalArgumentException("onTransactionCollected cannot be null");
         }
@@ -172,15 +174,15 @@ public class PostgresEventCollector implements EventCollector {
                         OffsetDateTime.now()
                 );
 
-                try {
-                    onTransactionCollected.consume(transaction);
-                } catch (Exception e) {
+                Result result = runWithResult(() -> onTransactionCollected.consume(transaction));
+
+                if (result.isError()) {
                     removeNextTransactions(connection, i + 1);
-                    log.error("Caught exception while sending events", e);
+
+                    log.error("Caught exception while sending events", result.getError().get());
 
                     currentBackoffMs = Math.min(currentBackoffMs + backoffIncreaseMs, maxBackoffMs);
                     Thread.sleep(currentBackoffMs);
-
                     return;
                 }
             }
@@ -207,7 +209,7 @@ public class PostgresEventCollector implements EventCollector {
                             .findAny()
                             .orElseThrow();
 
-                    List<Field> fields = toFields(insert.columns, relation);
+                    List<Field<?>> fields = toFields(insert.columns, relation);
 
                     InsertEvent insertDataChange = new InsertEvent(
                             UUID.randomUUID(),
@@ -229,7 +231,7 @@ public class PostgresEventCollector implements EventCollector {
                             .findAny()
                             .orElseThrow();
 
-                    List<Field> fields = toFields(delete.columns, relation);
+                    List<Field<?>> fields = toFields(delete.columns, relation);
 
                     DeleteEvent deleteEvent = new DeleteEvent(
                             UUID.randomUUID(),
@@ -254,8 +256,8 @@ public class PostgresEventCollector implements EventCollector {
                     // TODO: Check relation for which field is part of key
                     // If type = K, then use identifyingColumns, else use relation with partOfKey
 
-                    List<Field> identifyingFields = toFields(update.identifyingColumns, relation);
-                    List<Field> updatedFields = toFields(update.updatedColumns, relation);
+                    List<Field<?>> identifyingFields = toFields(update.identifyingColumns, relation);
+                    List<Field<?>> updatedFields = toFields(update.updatedColumns, relation);
 
                     UpdateEvent updateEvent = new UpdateEvent(
                             UUID.randomUUID(),
@@ -277,12 +279,12 @@ public class PostgresEventCollector implements EventCollector {
         return eventTransaction;
     }
 
-    private List<Field> toFields(List<TupleDataColumn> columns, RelationMessage relation) {
+    private List<Field<?>> toFields(List<TupleDataColumn> columns, RelationMessage relation) {
         if (columns.size() > relation.columns.size()) {
             throw new IllegalArgumentException(format("Tuple data columns length (%d) must be equal or less than relation columns (%d)", columns.size(), relation.columns.size()));
         }
 
-        List<Field> fields = new ArrayList<>(columns.size());
+        List<Field<?>> fields = new ArrayList<>(columns.size());
 
         for (int i = 0; i < columns.size(); i++) {
             TupleDataColumn insertCol = columns.get(i);
@@ -293,7 +295,7 @@ public class PostgresEventCollector implements EventCollector {
 
             Object parsedData = parseFieldData(type, fieldData);
 
-            fields.add(new Field(relationCol.name, type, parsedData));
+            fields.add(new Field<>(relationCol.name, type, parsedData));
         }
 
         return fields;

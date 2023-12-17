@@ -1,6 +1,7 @@
 package com.github.alexgaard.mirror.rabbitmq.receiver;
 
 import com.github.alexgaard.mirror.core.EventReceiver;
+import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.event.EventTransactionConsumer;
 import com.github.alexgaard.mirror.core.event.EventTransaction;
 import com.github.alexgaard.mirror.core.serde.Deserializer;
@@ -15,6 +16,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeoutException;
 
+import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.runWithResult;
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.softenException;
 
 
@@ -58,8 +60,6 @@ public class RabbitMqEventReceiver implements EventReceiver {
         if (channel == null || !channel.isOpen()) {
             try {
                 channel = connection.createChannel();
-                // TODO: Dont do this?
-                channel.queueDeclare(queueName, true, false, false, null);
             } catch (IOException e) {
                 log.error("Unable to open channel", e);
                 throw softenException(e);
@@ -73,12 +73,13 @@ public class RabbitMqEventReceiver implements EventReceiver {
 
             long tag = delivery.getEnvelope().getDeliveryTag();
 
-            try {
-                onEventReceived.consume(transaction);
+            Result result = runWithResult(() -> onEventReceived.consume(transaction));
+
+            if (result.isOk()) {
                 channel.basicAck(tag, false);
-            } catch (Exception e) {
+            } else {
                 channel.basicNack(tag, false, true);
-                log.error("Failed while consuming event transaction {}", transaction.id, e);
+                log.error("Failed while consuming event transaction {}", transaction.id, result.getError().get());
             }
         };
 

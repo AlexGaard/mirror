@@ -5,7 +5,7 @@ import com.github.alexgaard.mirror.core.event.EventTransactionConsumer;
 
 public interface EventCollector {
 
-    void setOnTranscationCollected(EventTransactionConsumer onTransactionCollected);
+    void setOnTransactionCollected(EventTransactionConsumer onTransactionCollected);
 
     void start();
 

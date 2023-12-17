@@ -1,6 +1,7 @@
 package com.github.alexgaard.mirror.postgres.processor;
 
 import com.github.alexgaard.mirror.core.EventProcessor;
+import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.event.*;
 import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
 import com.github.alexgaard.mirror.postgres.event.Field;
@@ -40,13 +41,13 @@ public class PostgresEventProcessor implements EventProcessor {
     }
 
     @Override
-    public synchronized void process(EventTransaction transaction) {
+    public synchronized Result process(EventTransaction transaction) {
         int lastTransactionId = lastSourceTransactionId.getOrDefault(transaction.sourceName, 0);
 
         List<Event> filteredEvents = filterNewEvents(transaction.events, lastTransactionId);
 
         if (filteredEvents.isEmpty()) {
-            return;
+            return Result.ok();
         }
 
         try (Connection connection = dataSource.getConnection()) {
@@ -63,14 +64,16 @@ public class PostgresEventProcessor implements EventProcessor {
                 log.error("Caught exception while processing events", e);
                 connection.rollback();
                 connection.setAutoCommit(originalAutoCommit.get());
-                throw softenException(e);
+                return Result.error(e);
             }
 
             connection.commit();
             connection.setAutoCommit(originalAutoCommit.get());
         } catch (SQLException e) {
-            throw softenException(e);
+            return Result.error(e);
         }
+
+        return Result.ok();
     }
 
     private void handleDataChangeEvent(Event event, Connection connection) {
@@ -119,11 +122,11 @@ public class PostgresEventProcessor implements EventProcessor {
         });
     }
 
-    private static String createSqlFieldsParameters(List<Field> fields) {
+    private static String createSqlFieldsParameters(List<Field<?>> fields) {
         return fields.stream().map(f -> f.name).collect(Collectors.joining(","));
     }
 
-    private static String createSqlValueTemplateParameters(List<Field> fields) {
+    private static String createSqlValueTemplateParameters(List<Field<?>> fields) {
         return fields.stream()
                 .map(f -> "?" + postgresTypeCast(f.type))
                 .collect(Collectors.joining(","));
@@ -140,7 +143,7 @@ public class PostgresEventProcessor implements EventProcessor {
         }
     }
 
-    private static void setParameter(PreparedStatement statement, int parameterIdx, Field field) throws SQLException {
+    private static void setParameter(PreparedStatement statement, int parameterIdx, Field<?> field) throws SQLException {
         switch (field.type) {
             case BYTES:
                 statement.setBytes(parameterIdx, (byte[]) field.value);

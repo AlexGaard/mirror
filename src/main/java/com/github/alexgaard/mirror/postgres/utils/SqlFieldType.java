@@ -25,7 +25,7 @@ public class SqlFieldType {
                 return Types.CHAR;
             case BOOLEAN:
                 return Types.BOOLEAN;
-            case STRING:
+            case TEXT:
             case JSON:
             case UUID:
                 return Types.VARCHAR;

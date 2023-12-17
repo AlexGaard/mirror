@@ -1,7 +1,10 @@
 package com.github.alexgaard.mirror.core.utils;
 
+import com.github.alexgaard.mirror.core.Result;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.function.Supplier;
 
 public class ExceptionUtil {
 
@@ -26,6 +29,14 @@ public class ExceptionUtil {
                 log.error("Caught exception from runnable", e);
             }
         };
+    }
+
+    public static Result runWithResult(Supplier<Result> unsafeSupplier) {
+        try {
+            return unsafeSupplier.get();
+        } catch (Exception e) {
+            return Result.error(e);
+        }
     }
 
 }

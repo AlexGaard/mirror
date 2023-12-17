@@ -48,31 +48,31 @@ public class PostgresEventProcessorTest {
 
         int id = 42;
 
-        List<Field> fields = new ArrayList<>();
-        fields.add(new Field("id", Field.Type.INT32, id));
-        fields.add(new Field("int2_field", Field.Type.INT16, (short) 5));
-        fields.add(new Field("int4_field",Field.Type.INT32, 42));
-        fields.add(new Field("int8_field",Field.Type.INT64, 153L));
-        fields.add(new Field("float4_field",Field.Type.FLOAT, 1.5423f));
-        fields.add(new Field("float8_field",Field.Type.DOUBLE, 33.3099));
-        fields.add(new Field("uuid_field",Field.Type.UUID, UUID.randomUUID()));
-        fields.add(new Field("varchar_field",Field.Type.STRING, "test"));
-        fields.add(new Field("text_field",Field.Type.STRING, "test2"));
-        fields.add(new Field("bool_field",Field.Type.BOOLEAN, true));
-        fields.add(new Field("bytes_field",Field.Type.BYTES, new byte[]{5, 87, 3}));
-        fields.add(new Field("char_field",Field.Type.CHAR, 's'));
-        fields.add(new Field("json_field",Field.Type.JSON, "{\"json\": true}"));
-        fields.add(new Field("jsonb_field",Field.Type.JSON, "{\"json\": true}"));
-        fields.add(new Field("date_field",Field.Type.DATE, LocalDate.now()));
-        fields.add(new Field("time_field",Field.Type.TIME, LocalTime.now()));
-        fields.add(new Field("timestamp_field",Field.Type.TIMESTAMP, LocalDateTime.now()));
-        fields.add(new Field("timestamptz_field",Field.Type.TIMESTAMP_TZ, OffsetDateTime.now(Clock.systemUTC())));
+        List<Field<?>> fields = new ArrayList<>();
+        fields.add(new Field.Int32("id", id));
+        fields.add(new Field.Int16("int2_field", (short) 5));
+        fields.add(new Field.Int32("int4_field", 42));
+        fields.add(new Field.Int64("int8_field", 153L));
+        fields.add(new Field.Float("float4_field", 1.5423f));
+        fields.add(new Field.Double("float8_field", 33.3099));
+        fields.add(new Field.Uuid("uuid_field", UUID.randomUUID()));
+        fields.add(new Field.Text("varchar_field", "test"));
+        fields.add(new Field.Text("text_field", "test2"));
+        fields.add(new Field.Boolean("bool_field", true));
+        fields.add(new Field.Bytes("bytes_field", new byte[]{5, 87, 3}));
+        fields.add(new Field.Char("char_field", 's'));
+        fields.add(new Field.Json("json_field", "{\"json\": true}"));
+        fields.add(new Field.Json("jsonb_field", "{\"json\": true}"));
+        fields.add(new Field.Date("date_field", LocalDate.now()));
+        fields.add(new Field.Time("time_field", LocalTime.now()));
+        fields.add(new Field.Timestamp("timestamp_field", LocalDateTime.now()));
+        fields.add(new Field.TimestampTz("timestamptz_field", OffsetDateTime.now(Clock.systemUTC())));
 
         InsertEvent insert = new InsertEvent(
                 UUID.randomUUID(),
                 "public",
                 "data_types",
-                0,
+                1,
                 fields,
                 OffsetDateTime.now()
         );
@@ -115,14 +115,14 @@ public class PostgresEventProcessorTest {
 
         PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
 
-        List<Field> fields = new ArrayList<>();
-        fields.add(new Field("id", Field.Type.INT32, dbo.id));
+        List<Field<?>> fields = new ArrayList<>();
+        fields.add(new Field<>("id", Field.Type.INT32, dbo.id));
 
         DeleteEvent delete = new DeleteEvent(
                 UUID.randomUUID(),
                 "public",
                 "data_types",
-                0,
+                1,
                 fields,
                 OffsetDateTime.now()
         );
@@ -146,7 +146,7 @@ public class PostgresEventProcessorTest {
                 "public",
                 "data_types",
                 10,
-                List.of(new Field("id", Field.Type.INT32, id1)),
+                List.of(new Field<>("id", Field.Type.INT32, id1)),
                 OffsetDateTime.now()
         );
 
@@ -155,7 +155,7 @@ public class PostgresEventProcessorTest {
                 "public",
                 "data_types",
                 9,
-                List.of(new Field("id", Field.Type.INT32, id2)),
+                List.of(new Field<>("id", Field.Type.INT32, id2)),
                 OffsetDateTime.now()
         );
 

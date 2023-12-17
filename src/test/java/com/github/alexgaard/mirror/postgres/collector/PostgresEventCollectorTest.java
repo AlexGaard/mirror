@@ -1,10 +1,10 @@
 package com.github.alexgaard.mirror.postgres.collector;
 
+import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
 import com.github.alexgaard.mirror.core.event.EventTransaction;
 import com.github.alexgaard.mirror.postgres.event.InsertEvent;
 import com.github.alexgaard.mirror.postgres.event.UpdateEvent;
-import com.github.alexgaard.mirror.postgres.utils.QueryUtils;
 import com.github.alexgaard.mirror.test_utils.DataTypesDbo;
 import com.github.alexgaard.mirror.test_utils.DataTypesRepository;
 import com.github.alexgaard.mirror.test_utils.DbUtils;
@@ -15,9 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
-import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Types;
 import java.time.*;
 import java.util.List;
 import java.util.UUID;
@@ -53,7 +51,10 @@ public class PostgresEventCollectorTest {
 
         collector = new PostgresEventCollector("test", dataSource, Duration.ofMillis(100), pgReplication);
 
-        collector.setOnTranscationCollected((collectedTransactions::add));
+        collector.setOnTransactionCollected(transaction -> {
+            collectedTransactions.add(transaction);
+            return Result.ok();
+        });
     }
 
     @BeforeEach

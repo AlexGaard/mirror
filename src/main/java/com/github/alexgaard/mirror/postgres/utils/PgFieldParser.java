@@ -28,7 +28,7 @@ public class PgFieldParser {
             case NULL:
                 return null;
             case JSON:
-            case STRING:
+            case TEXT:
                 if (!(fieldData instanceof String)) {
                     throw new IllegalArgumentException("Data is not a String");
                 }

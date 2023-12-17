@@ -10,7 +10,7 @@ public class DeleteEvent extends PostgresEvent {
 
     public final static String TYPE = "delete";
 
-    public final List<Field> identifyingFields;
+    public final List<Field<?>> identifyingFields;
 
     // Used for deserialization
     public DeleteEvent() {
@@ -18,7 +18,7 @@ public class DeleteEvent extends PostgresEvent {
         this.identifyingFields = null;
     }
 
-    public DeleteEvent(UUID id, String namespace, String table, int transactionId, List<Field> identifier, OffsetDateTime createdAt) {
+    public DeleteEvent(UUID id, String namespace, String table, int transactionId, List<Field<?>> identifier, OffsetDateTime createdAt) {
         super(id, TYPE, namespace, table, transactionId, createdAt);
         this.identifyingFields = identifier;
     }

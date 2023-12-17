@@ -8,7 +8,7 @@ public class InsertEvent extends PostgresEvent {
 
     public final static String TYPE = "insert";
 
-    public final List<Field> fields;
+    public final List<Field<?>> fields;
 
     // Used for deserialization
     public InsertEvent() {
@@ -16,7 +16,7 @@ public class InsertEvent extends PostgresEvent {
         this.fields = null;
     }
 
-    public InsertEvent(UUID id, String namespace, String table, int transactionId, List<Field> fields, OffsetDateTime createdAt) {
+    public InsertEvent(UUID id, String namespace, String table, int transactionId, List<Field<?>> fields, OffsetDateTime createdAt) {
         super(id, TYPE, namespace, table, transactionId, createdAt);
         this.fields = fields;
     }

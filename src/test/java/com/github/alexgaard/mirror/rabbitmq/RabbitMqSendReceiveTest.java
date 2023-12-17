@@ -1,10 +1,9 @@
 package com.github.alexgaard.mirror.rabbitmq;
 
+import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.event.Event;
 import com.github.alexgaard.mirror.core.event.EventTransaction;
-import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
 import com.github.alexgaard.mirror.postgres.event.Field;
-import com.github.alexgaard.mirror.postgres.event.InsertEvent;
 import com.github.alexgaard.mirror.postgres.event.UpdateEvent;
 import com.github.alexgaard.mirror.rabbitmq.receiver.RabbitMqEventReceiver;
 import com.github.alexgaard.mirror.rabbitmq.sender.RabbitMqEventSender;
@@ -46,7 +45,10 @@ public class RabbitMqSendReceiveTest {
 
         AtomicReference<EventTransaction> transactionRef = new AtomicReference<>();
 
-        receiver.initialize(transactionRef::set);
+        receiver.initialize((transaction) -> {
+            transactionRef.set(transaction);
+            return Result.ok();
+        });
 
         receiver.start();
 
@@ -61,7 +63,7 @@ public class RabbitMqSendReceiveTest {
 //                ), nowUtc),
                 new UpdateEvent(UUID.randomUUID(), "test", "my-table", 0,
                         List.of(new Field("id", Field.Type.INT32, 5)),
-                        List.of(new Field("name", Field.Type.STRING, "hello")),
+                        List.of(new Field("name", Field.Type.TEXT, "hello")),
                 nowUtc)
 //                new DeleteEvent(UUID.randomUUID(), "test", "my-table", 0, List.of(
 //                        new Field("id", Field.Type.INT32, 5)

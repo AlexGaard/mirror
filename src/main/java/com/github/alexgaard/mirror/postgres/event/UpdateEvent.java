@@ -9,9 +9,9 @@ public class UpdateEvent extends PostgresEvent {
 
     public final static String TYPE = "update";
 
-    public final List<Field> identifyingFields;
+    public final List<Field<?>> identifyingFields;
 
-    public final List<Field> updateFields;
+    public final List<Field<?>> updateFields;
 
     // Used for deserialization
     public UpdateEvent() {
@@ -20,7 +20,7 @@ public class UpdateEvent extends PostgresEvent {
         this.updateFields = null;
     }
 
-    public UpdateEvent(UUID id, String namespace, String table, int transactionId, List<Field> identifyingFields, List<Field> updateFields, OffsetDateTime createdAt) {
+    public UpdateEvent(UUID id, String namespace, String table, int transactionId, List<Field<?>> identifyingFields, List<Field<?>> updateFields, OffsetDateTime createdAt) {
         super(id, TYPE, namespace, table, transactionId, createdAt);
         this.identifyingFields = identifyingFields;
         this.updateFields = updateFields;

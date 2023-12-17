@@ -1,6 +1,7 @@
 package com.github.alexgaard.mirror.rabbitmq.sender;
 
 import com.github.alexgaard.mirror.core.EventSender;
+import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.event.EventTransaction;
 import com.github.alexgaard.mirror.core.serde.Serializer;
 import com.rabbitmq.client.Channel;
@@ -36,13 +37,13 @@ public class RabbitMqEventSender implements EventSender {
     }
 
     @Override
-    public void send(EventTransaction transaction) {
+    public Result send(EventTransaction transaction) {
         if (connection == null || !connection.isOpen()) {
             try {
                 connection = factory.newConnection();
             } catch (IOException | TimeoutException e) {
                 log.error("Failed to send transaction {}. Unable to open connection", transaction.id, e);
-                throw softenException(e);
+                return Result.error(e);
             }
         }
 
@@ -51,15 +52,17 @@ public class RabbitMqEventSender implements EventSender {
                 channel = connection.createChannel();
             } catch (IOException e) {
                 log.error("Failed to send transaction {}. Unable to open channel", transaction.id, e);
-                throw softenException(e);
+                return Result.error(e);
             }
         }
 
         try {
             String message = serializer.serialize(transaction);
             channel.basicPublish(exchangeName, routingKey, null, message.getBytes());
+
+            return Result.ok();
         } catch (IOException e) {
-            throw softenException(e);
+            return Result.error(e);
         }
     }
 

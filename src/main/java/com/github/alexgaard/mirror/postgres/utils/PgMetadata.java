@@ -65,7 +65,7 @@ public class PgMetadata {
                     return Field.Type.JSON;
                 case "varchar":
                 case "text":
-                    return Field.Type.STRING;
+                    return Field.Type.TEXT;
                 case "uuid":
                     return Field.Type.UUID;
                 case "bpchar":
