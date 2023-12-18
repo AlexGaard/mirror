@@ -12,6 +12,7 @@ import java.net.URL;
 import java.nio.file.Files;
 
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.softenException;
+import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.query;
 
 public class DbUtils {
 
@@ -39,6 +40,17 @@ public class DbUtils {
        } catch (Exception e) {
            throw softenException(e);
        }
+    }
+
+    public static void drainWalMessages(DataSource dataSource, String replicationSlotName, String publicationName) {
+        String sql = "SELECT 1 FROM pg_logical_slot_get_binary_changes(?, NULL, ?, 'messages', 'true', 'proto_version', '1', 'publication_names', ?)";
+
+        query(dataSource, sql, statement -> {
+            statement.setString(1, replicationSlotName);
+            statement.setInt(2, 10000);
+            statement.setString(3, publicationName);
+            statement.executeQuery();
+        });
     }
 
 }

@@ -25,7 +25,7 @@ import static java.time.temporal.ChronoUnit.MILLIS;
 import static org.junit.jupiter.api.Assertions.*;
 
 @Testcontainers
-public class PostgresEventProcessorTest {
+public class PostgresProcessorTest {
 
     @Container
     public static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16.0-alpine3.18")
@@ -44,7 +44,7 @@ public class PostgresEventProcessorTest {
 
     @Test
     public void should_handle_insert_event() {
-        PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
+        PostgresProcessor processor = new PostgresProcessor(dataSource);
 
         int id = 42;
 
@@ -113,7 +113,7 @@ public class PostgresEventProcessorTest {
             assertNotNull(dataTypesRepository.getDataTypes(dbo.id));
         });
 
-        PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
+        PostgresProcessor processor = new PostgresProcessor(dataSource);
 
         List<Field<?>> fields = new ArrayList<>();
         fields.add(new Field<>("id", Field.Type.INT32, dbo.id));
@@ -136,7 +136,7 @@ public class PostgresEventProcessorTest {
 
     @Test
     public void should_skip_old_events() {
-        PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
+        PostgresProcessor processor = new PostgresProcessor(dataSource);
 
         int id1 = 67;
         int id2 = 68;

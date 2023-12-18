@@ -1,4 +1,4 @@
-package com.github.alexgaard.mirror.postgres.event.serde;
+package com.github.alexgaard.mirror.postgres.event.json;
 
 import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
 import com.github.alexgaard.mirror.postgres.event.InsertEvent;

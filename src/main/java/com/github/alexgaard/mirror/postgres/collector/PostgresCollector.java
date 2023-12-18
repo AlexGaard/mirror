@@ -1,6 +1,6 @@
 package com.github.alexgaard.mirror.postgres.collector;
 
-import com.github.alexgaard.mirror.core.EventCollector;
+import com.github.alexgaard.mirror.core.Collector;
 import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.event.*;
 import com.github.alexgaard.mirror.postgres.collector.message.*;
@@ -31,13 +31,13 @@ import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.runWithResult
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.safeRunnable;
 import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.MESSAGE_PREFIX;
 import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.SKIP_TRANSACTION_MSG;
-import static com.github.alexgaard.mirror.postgres.utils.PgFieldParser.parseFieldData;
+import static com.github.alexgaard.mirror.postgres.utils.FieldMapper.mapTupleDataToField;
 import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.*;
 import static java.lang.String.format;
 
-public class PostgresEventCollector implements EventCollector {
+public class PostgresCollector implements Collector {
 
-    private final Logger log = LoggerFactory.getLogger(PostgresEventCollector.class);
+    private final Logger log = LoggerFactory.getLogger(PostgresCollector.class);
 
     private final String replicationSlotName;
 
@@ -71,7 +71,7 @@ public class PostgresEventCollector implements EventCollector {
 
     private ScheduledFuture<?> pollSchedule;
 
-    public PostgresEventCollector(String sourceName, DataSource dataSource, Duration pollInterval, PgReplication pgReplication) {
+    public PostgresCollector(String sourceName, DataSource dataSource, Duration pollInterval, PgReplication pgReplication) {
         this.sourceName = sourceName;
         this.dataSource = dataSource;
         this.dataChangePollInterval = pollInterval;
@@ -80,7 +80,7 @@ public class PostgresEventCollector implements EventCollector {
         this.publicationName = pgReplication.getPublicationName();
     }
 
-    public PostgresEventCollector(String sourceName, DataSource dataSource, PgReplication pgReplication) {
+    public PostgresCollector(String sourceName, DataSource dataSource, PgReplication pgReplication) {
         this(sourceName, dataSource, Duration.ofSeconds(1), pgReplication);
     }
 
@@ -290,12 +290,11 @@ public class PostgresEventCollector implements EventCollector {
             TupleDataColumn insertCol = columns.get(i);
             RelationMessage.Column relationCol = relation.columns.get(i);
 
-            Object fieldData = insertCol.getData();
-            Field.Type type = pgDataTypes.get(relationCol.dataOid).getType();
+            Field.Type type = insertCol.type.equals(TupleDataColumn.Type.NULL)
+                    ? Field.Type.NULL
+                    : pgDataTypes.get(relationCol.dataOid).getType();
 
-            Object parsedData = parseFieldData(type, fieldData);
-
-            fields.add(new Field<>(relationCol.name, type, parsedData));
+            fields.add(mapTupleDataToField(relationCol.name, type, insertCol));
         }
 
         return fields;
@@ -322,7 +321,7 @@ public class PostgresEventCollector implements EventCollector {
 
             ResultSet resultSet = statement.executeQuery();
 
-            return resultList(resultSet, PostgresEventCollector::toRawEvent);
+            return resultList(resultSet, PostgresCollector::toRawEvent);
         });
     }
 

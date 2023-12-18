@@ -1,6 +1,6 @@
 package com.github.alexgaard.mirror.rabbitmq.sender;
 
-import com.github.alexgaard.mirror.core.EventSender;
+import com.github.alexgaard.mirror.core.Sender;
 import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.event.EventTransaction;
 import com.github.alexgaard.mirror.core.serde.Serializer;
@@ -13,9 +13,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
 
-import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.softenException;
-
-public class RabbitMqEventSender implements EventSender {
+public class RabbitMqEventSender implements Sender {
 
     private final static Logger log = LoggerFactory.getLogger(RabbitMqEventSender.class);
 

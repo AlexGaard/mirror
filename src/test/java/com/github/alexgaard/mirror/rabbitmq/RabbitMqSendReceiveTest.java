@@ -5,7 +5,7 @@ import com.github.alexgaard.mirror.core.event.Event;
 import com.github.alexgaard.mirror.core.event.EventTransaction;
 import com.github.alexgaard.mirror.postgres.event.Field;
 import com.github.alexgaard.mirror.postgres.event.UpdateEvent;
-import com.github.alexgaard.mirror.rabbitmq.receiver.RabbitMqEventReceiver;
+import com.github.alexgaard.mirror.rabbitmq.receiver.RabbitMqReceiver;
 import com.github.alexgaard.mirror.rabbitmq.sender.RabbitMqEventSender;
 import com.github.alexgaard.mirror.test_utils.RabbitMqSingletonContainer;
 import org.junit.jupiter.api.BeforeAll;
@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.github.alexgaard.mirror.postgres.event.serde.JsonUtils.*;
+import static com.github.alexgaard.mirror.postgres.event.json.JsonSerde.*;
 import static com.github.alexgaard.mirror.test_utils.AsyncUtils.eventually;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -37,7 +37,7 @@ public class RabbitMqSendReceiveTest {
 
     @Test
     public void shouldSendAndReceiveMessage() {
-        RabbitMqEventReceiver receiver = new RabbitMqEventReceiver(
+        RabbitMqReceiver receiver = new RabbitMqReceiver(
                 RabbitMqSingletonContainer.createConnectionFactory(),
                 queue,
                 jsonDeserializer
@@ -45,7 +45,7 @@ public class RabbitMqSendReceiveTest {
 
         AtomicReference<EventTransaction> transactionRef = new AtomicReference<>();
 
-        receiver.initialize((transaction) -> {
+        receiver.setOnTransactionReceived((transaction) -> {
             transactionRef.set(transaction);
             return Result.ok();
         });

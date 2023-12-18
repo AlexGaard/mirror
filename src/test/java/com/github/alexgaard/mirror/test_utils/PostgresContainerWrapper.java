@@ -32,9 +32,9 @@ public class PostgresContainerWrapper {
 
     private DataSource createDataSource() {
         var config = new HikariConfig();
+        config.setMinimumIdle(0);
+        config.setMaximumPoolSize(20);
         config.setJdbcUrl(container.getJdbcUrl());
-        config.setMaximumPoolSize(3);
-        config.setMinimumIdle(1);
         config.setUsername(container.getUsername());
         config.setPassword(container.getPassword());
 

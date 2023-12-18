@@ -1,6 +1,5 @@
 package com.github.alexgaard.mirror.test_utils;
 
-import com.github.alexgaard.mirror.postgres.processor.PostgresEventProcessorTest;
 import com.github.alexgaard.mirror.postgres.utils.QueryUtils;
 
 import javax.sql.DataSource;
@@ -216,15 +215,15 @@ public class DataTypesRepository {
     private static DataTypesDbo mapRowToDataTypesDbo(ResultSet rs) throws SQLException {
         DataTypesDbo dbo = new DataTypesDbo();
         dbo.id = rs.getInt("id");
-        dbo.int2_field = rs.getShort("int2_field");
-        dbo.int4_field = rs.getInt("int4_field");
-        dbo.int8_field = rs.getLong("int8_field");
-        dbo.float4_field = rs.getFloat("float4_field");
-        dbo.float8_field = rs.getDouble("float8_field");
+        dbo.int2_field = rs.getObject("int2_field", Short.class);
+        dbo.int4_field = rs.getObject("int4_field", Integer.class);
+        dbo.int8_field = rs.getObject("int8_field", Long.class);
+        dbo.float4_field = rs.getObject("float4_field", Float.class);
+        dbo.float8_field = rs.getObject("float8_field", Double.class);
         dbo.uuid_field = uuid(rs.getString("uuid_field"));
         dbo.varchar_field = rs.getString("varchar_field");
         dbo.text_field = rs.getString("text_field");
-        dbo.bool_field = rs.getBoolean("bool_field");
+        dbo.bool_field = rs.getObject("bool_field", Boolean.class);
         dbo.bytes_field = rs.getBytes("bytes_field");
         dbo.char_field = character(rs.getString("char_field"));
         dbo.json_field = rs.getString("json_field");

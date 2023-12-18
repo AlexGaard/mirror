@@ -1,4 +1,4 @@
-package com.github.alexgaard.mirror.postgres.event.serde;
+package com.github.alexgaard.mirror.postgres.event.json;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -10,7 +10,7 @@ import com.github.alexgaard.mirror.postgres.event.Field;
 import com.github.alexgaard.mirror.core.serde.Deserializer;
 import com.github.alexgaard.mirror.core.serde.Serializer;
 
-public class JsonUtils {
+public class JsonSerde {
 
     public static final ObjectMapper jsonMapper = createMapper();
 

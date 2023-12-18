@@ -13,13 +13,15 @@ import java.util.UUID;
 import static com.github.alexgaard.mirror.postgres.utils.ParseUtils.toByteArray;
 import static java.lang.String.format;
 
-public class PgFieldParser {
+public class FieldMapper {
 
-    private static final DateTimeFormatter localDateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSS");
+    public static Field<?> mapTupleDataToField(String fieldName, Field.Type fieldType, TupleDataColumn tupleDataColumn) {
+        Object parsedData = parseTupleColumnData(fieldType, tupleDataColumn.getData());
 
-    private static final DateTimeFormatter offsetDateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSSSSx");
+        return new Field<>(fieldName, fieldType, parsedData);
+    }
 
-    public static Object parseFieldData(Field.Type fieldType, Object fieldData) {
+    private static Object parseTupleColumnData(Field.Type fieldType, Object fieldData) {
         if (fieldData == null) {
             return null;
         }
@@ -55,10 +57,9 @@ public class PgFieldParser {
             case TIME:
                 return LocalTime.parse((String) fieldData);
             case TIMESTAMP:
-                // TODO: Precision is variable, ex: 2023-12-16 12:32:36.62664
-                return LocalDateTime.parse((String) fieldData, localDateTimeFormatter);
+                return DateParser.parseVariablePrecisionLocalDateTime((String) fieldData);
             case TIMESTAMP_TZ:
-                return OffsetDateTime.parse((String) fieldData, offsetDateTimeFormatter);
+                return DateParser.parseVariablePrecisionOffsetDateTime((String) fieldData);
             case BYTES:
                 String fieldDataStr = (String) fieldData;
 

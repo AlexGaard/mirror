@@ -9,6 +9,7 @@ import com.github.alexgaard.mirror.test_utils.DataTypesDbo;
 import com.github.alexgaard.mirror.test_utils.DataTypesRepository;
 import com.github.alexgaard.mirror.test_utils.DbUtils;
 import com.github.alexgaard.mirror.test_utils.PostgresSingletonContainer;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,18 +24,21 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.insertSkipTransactionMessage;
 import static com.github.alexgaard.mirror.test_utils.AsyncUtils.eventually;
+import static com.github.alexgaard.mirror.test_utils.DbUtils.drainWalMessages;
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static org.junit.jupiter.api.Assertions.*;
 
-public class PostgresEventCollectorTest {
+public class PostgresCollectorTest {
 
     private static final DataSource dataSource = PostgresSingletonContainer.getDataSource();
 
-    private static PostgresEventCollector collector;
+    private static PostgresCollector collector;
 
     private static DataTypesRepository dataTypesRepository;
 
     private static final List<EventTransaction> collectedTransactions = new CopyOnWriteArrayList<>();
+
+    private static final String replicationName = "mirror_" + ((int) (Math.random() * 10_000));
 
     @BeforeAll
     public static void setup() {
@@ -42,14 +46,14 @@ public class PostgresEventCollectorTest {
 
         DbUtils.initTables(dataSource);
 
-        String name = "mirror_" + ((int) (Math.random() * 10_000));
-
         PgReplication pgReplication = new PgReplication()
-                .replicationSlotName(name)
-                .publicationName(name)
+                .replicationSlotName(replicationName)
+                .publicationName(replicationName)
                 .allTables();
 
-        collector = new PostgresEventCollector("test", dataSource, Duration.ofMillis(100), pgReplication);
+        pgReplication.setup(dataSource);
+
+        collector = new PostgresCollector("test", dataSource, Duration.ofMillis(100), pgReplication);
 
         collector.setOnTransactionCollected(transaction -> {
             collectedTransactions.add(transaction);
@@ -65,6 +69,8 @@ public class PostgresEventCollectorTest {
 
     @Test
     public void should_parse_insert_of_different_data_types() {
+        drainWalMessages(dataSource, replicationName, replicationName);
+
         collector.start();
 
         DataTypesDbo dbo = new DataTypesDbo();
@@ -163,6 +169,8 @@ public class PostgresEventCollectorTest {
 
         dataTypesRepository.insertDataTypes(dbo);
 
+        drainWalMessages(dataSource, replicationName, replicationName);
+
         collector.start();
 
         dataTypesRepository.deleteDataTypeRow(42);
@@ -214,6 +222,8 @@ public class PostgresEventCollectorTest {
         dbo.int2_field = 5;
 
         dataTypesRepository.insertDataTypes(dbo);
+
+        drainWalMessages(dataSource, replicationName, replicationName);
 
         collector.start();
 

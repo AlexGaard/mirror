@@ -1,6 +1,6 @@
 package com.github.alexgaard.mirror.rabbitmq.receiver;
 
-import com.github.alexgaard.mirror.core.EventReceiver;
+import com.github.alexgaard.mirror.core.Receiver;
 import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.event.EventTransactionConsumer;
 import com.github.alexgaard.mirror.core.event.EventTransaction;
@@ -20,9 +20,9 @@ import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.runWithResult
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.softenException;
 
 
-public class RabbitMqEventReceiver implements EventReceiver {
+public class RabbitMqReceiver implements Receiver {
 
-    private final static Logger log = LoggerFactory.getLogger(RabbitMqEventReceiver.class);
+    private final static Logger log = LoggerFactory.getLogger(RabbitMqReceiver.class);
 
     private final ConnectionFactory factory;
     private final String queueName;
@@ -35,14 +35,14 @@ public class RabbitMqEventReceiver implements EventReceiver {
 
     private volatile Channel channel;
 
-    public RabbitMqEventReceiver(ConnectionFactory factory, String queueName, Deserializer deserializer) {
+    public RabbitMqReceiver(ConnectionFactory factory, String queueName, Deserializer deserializer) {
         this.factory = factory;
         this.queueName = queueName;
         this.deserializer = deserializer;
     }
 
     @Override
-    public void initialize(EventTransactionConsumer onEventReceived) {
+    public void setOnTransactionReceived(EventTransactionConsumer onEventReceived) {
         this.onEventReceived = onEventReceived;
     }
 

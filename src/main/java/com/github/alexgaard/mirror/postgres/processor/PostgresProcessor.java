@@ -1,6 +1,6 @@
 package com.github.alexgaard.mirror.postgres.processor;
 
-import com.github.alexgaard.mirror.core.EventProcessor;
+import com.github.alexgaard.mirror.core.Processor;
 import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.event.*;
 import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
@@ -21,14 +21,13 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.softenException;
 import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.insertSkipTransactionMessage;
 import static com.github.alexgaard.mirror.postgres.utils.SqlFieldType.sqlFieldType;
 import static java.lang.String.format;
 
-public class PostgresEventProcessor implements EventProcessor {
+public class PostgresProcessor implements Processor {
 
-    private final static Logger log = LoggerFactory.getLogger(PostgresEventProcessor.class);
+    private final static Logger log = LoggerFactory.getLogger(PostgresProcessor.class);
 
     private final AtomicBoolean originalAutoCommit = new AtomicBoolean();
 
@@ -36,7 +35,7 @@ public class PostgresEventProcessor implements EventProcessor {
 
     private final DataSource dataSource;
 
-    public PostgresEventProcessor(DataSource dataSource) {
+    public PostgresProcessor(DataSource dataSource) {
         this.dataSource = dataSource;
     }
 
