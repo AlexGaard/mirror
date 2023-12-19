@@ -39,6 +39,10 @@ public class TupleDataColumn {
     }
 
     public Object getData() {
+        if (data == null) {
+            return null;
+        }
+
         switch (type) {
             case TOASTED:
                 throw new IllegalStateException("Unable to handle toasted values");

@@ -159,6 +159,33 @@ public class PostgresCollectorTest {
     }
 
     @Test
+    public void should_parse_insert_of_null_data_types() {
+        drainWalMessages(dataSource, replicationName, replicationName);
+
+        collector.start();
+
+        DataTypesDbo dbo = new DataTypesDbo();
+        dbo.id = (int) (Math.random() * 10000);
+
+        dataTypesRepository.insertDataTypes(dbo);
+
+        eventually(() -> {
+            assertEquals(1, collectedTransactions.size());
+
+            InsertEvent dataChange = (InsertEvent) collectedTransactions.get(0).events.get(0);
+
+            assertEquals("public", dataChange.namespace);
+            assertEquals("data_types", dataChange.table);
+
+            assertEquals(18, dataChange.fields.size());
+
+            dataChange.fields.stream()
+                    .filter(f -> !"id".equals(f.name))
+                    .forEach(f -> assertNull(f.value));
+        });
+    }
+
+    @Test
     public void should_handle_delete_event() {
         DataTypesDbo dbo = new DataTypesDbo();
         dbo.id = 8797;
