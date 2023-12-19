@@ -106,14 +106,14 @@ public class PostgresProcessor implements Processor {
     }
 
     private void handleDeleteEvent(DeleteEvent delete, Connection connection) {
-        String whereSql = delete.identifyingFields.stream().map(f -> f.name + " = ?")
+        String whereSql = delete.identifierFields.stream().map(f -> f.name + " = ?")
                 .collect(Collectors.joining(", "));
 
         String sql = format("DELETE FROM %s.%s WHERE %s", delete.namespace, delete.table, whereSql);
 
         QueryUtils.update(connection, sql, statement -> {
-            for (int i = 0; i < delete.identifyingFields.size(); i++) {
-                Field field = delete.identifyingFields.get(i);
+            for (int i = 0; i < delete.identifierFields.size(); i++) {
+                Field field = delete.identifierFields.get(i);
 
                 setParameter(statement, i + 1, field);
             }

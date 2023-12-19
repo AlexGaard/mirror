@@ -1,9 +1,6 @@
 package com.github.alexgaard.mirror.postgres.collector;
 
-import com.github.alexgaard.mirror.common_test.DataTypesDbo;
-import com.github.alexgaard.mirror.common_test.DataTypesRepository;
-import com.github.alexgaard.mirror.common_test.DbUtils;
-import com.github.alexgaard.mirror.common_test.PostgresSingletonContainer;
+import com.github.alexgaard.mirror.common_test.*;
 import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.event.EventTransaction;
 import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
@@ -183,8 +180,8 @@ public class PostgresCollectorTest {
             assertNotNull(deleteEvent.id);
             assertEquals("data_types", deleteEvent.table);
             assertEquals("public", deleteEvent.namespace);
-            assertEquals(18, deleteEvent.identifyingFields.size());
-            assertTrue(deleteEvent.identifyingFields.stream().anyMatch(f -> f.name.equals("id") && ((Integer) 42).equals(f.value)));
+            assertEquals(18, deleteEvent.identifierFields.size());
+            assertTrue(deleteEvent.identifierFields.stream().anyMatch(f -> f.name.equals("id") && ((Integer) 42).equals(f.value)));
         });
     }
 
@@ -256,61 +253,147 @@ public class PostgresCollectorTest {
 
             assertNotNull(updateEvent.id);
 
-            assertEquals("id", updateEvent.updateFields.get(0).name);
-            assertNotNull(updateEvent.updateFields.get(0).value);
+            assertEquals("int2_field", updateEvent.fields.get(0).name);
+            assertEquals(update.int2_field, updateEvent.fields.get(0).value);
 
-            assertEquals("int2_field", updateEvent.updateFields.get(1).name);
-            assertEquals(update.int2_field, updateEvent.updateFields.get(1).value);
+            assertEquals("int4_field", updateEvent.fields.get(1).name);
+            assertEquals(update.int4_field, updateEvent.fields.get(1).value);
 
-            assertEquals("int4_field", updateEvent.updateFields.get(2).name);
-            assertEquals(update.int4_field, updateEvent.updateFields.get(2).value);
+            assertEquals("int8_field", updateEvent.fields.get(2).name);
+            assertEquals(update.int8_field, updateEvent.fields.get(2).value);
 
-            assertEquals("int8_field", updateEvent.updateFields.get(3).name);
-            assertEquals(update.int8_field, updateEvent.updateFields.get(3).value);
+            assertEquals("float4_field", updateEvent.fields.get(3).name);
+            assertEquals(update.float4_field, updateEvent.fields.get(3).value);
 
-            assertEquals("float4_field", updateEvent.updateFields.get(4).name);
-            assertEquals(update.float4_field, updateEvent.updateFields.get(4).value);
+            assertEquals("float8_field", updateEvent.fields.get(4).name);
+            assertEquals(update.float8_field, updateEvent.fields.get(4).value);
 
-            assertEquals("float8_field", updateEvent.updateFields.get(5).name);
-            assertEquals(update.float8_field, updateEvent.updateFields.get(5).value);
+            assertEquals("uuid_field", updateEvent.fields.get(5).name);
+            assertEquals(update.uuid_field, updateEvent.fields.get(5).value);
 
-            assertEquals("uuid_field", updateEvent.updateFields.get(6).name);
-            assertEquals(update.uuid_field, updateEvent.updateFields.get(6).value);
+            assertEquals("varchar_field", updateEvent.fields.get(6).name);
+            assertEquals(update.varchar_field, updateEvent.fields.get(6).value);
 
-            assertEquals("varchar_field", updateEvent.updateFields.get(7).name);
-            assertEquals(update.varchar_field, updateEvent.updateFields.get(7).value);
+            assertEquals("text_field", updateEvent.fields.get(7).name);
+            assertEquals(update.text_field, updateEvent.fields.get(7).value);
 
-            assertEquals("text_field", updateEvent.updateFields.get(8).name);
-            assertEquals(update.text_field, updateEvent.updateFields.get(8).value);
+            assertEquals("bool_field", updateEvent.fields.get(8).name);
+            assertEquals(update.bool_field, updateEvent.fields.get(8).value);
 
-            assertEquals("bool_field", updateEvent.updateFields.get(9).name);
-            assertEquals(update.bool_field, updateEvent.updateFields.get(9).value);
+            assertEquals("bytes_field", updateEvent.fields.get(9).name);
+            assertArrayEquals(update.bytes_field, (byte[]) updateEvent.fields.get(9).value);
 
-            assertEquals("bytes_field", updateEvent.updateFields.get(10).name);
-            assertArrayEquals(update.bytes_field, (byte[]) updateEvent.updateFields.get(10).value);
+            assertEquals("char_field", updateEvent.fields.get(10).name);
+            assertEquals(update.char_field, updateEvent.fields.get(10).value);
 
-            assertEquals("char_field", updateEvent.updateFields.get(11).name);
-            assertEquals(update.char_field, updateEvent.updateFields.get(11).value);
+            assertEquals("json_field", updateEvent.fields.get(11).name);
+            assertEquals(update.json_field, updateEvent.fields.get(11).value);
 
-            assertEquals("json_field", updateEvent.updateFields.get(12).name);
-            assertEquals(update.json_field, updateEvent.updateFields.get(12).value);
+            assertEquals("jsonb_field", updateEvent.fields.get(12).name);
+            assertEquals(update.jsonb_field, updateEvent.fields.get(12).value);
 
-            assertEquals("jsonb_field", updateEvent.updateFields.get(13).name);
-            assertEquals(update.jsonb_field, updateEvent.updateFields.get(13).value);
+            assertEquals("date_field", updateEvent.fields.get(13).name);
+            assertEquals(update.date_field, updateEvent.fields.get(13).value);
 
-            assertEquals("date_field", updateEvent.updateFields.get(14).name);
-            assertEquals(update.date_field, updateEvent.updateFields.get(14).value);
+            assertEquals("time_field", updateEvent.fields.get(14).name);
+            assertEquals(update.time_field.truncatedTo(MILLIS), ((LocalTime) updateEvent.fields.get(14).value).truncatedTo(MILLIS));
 
-            assertEquals("time_field", updateEvent.updateFields.get(15).name);
-            assertEquals(update.time_field.truncatedTo(MILLIS), ((LocalTime) updateEvent.updateFields.get(15).value).truncatedTo(MILLIS));
+            assertEquals("timestamp_field", updateEvent.fields.get(15).name);
+            assertEquals(update.timestamp_field.truncatedTo(MILLIS), ((LocalDateTime) updateEvent.fields.get(15).value).truncatedTo(MILLIS));
 
-            assertEquals("timestamp_field", updateEvent.updateFields.get(16).name);
-            assertEquals(update.timestamp_field.truncatedTo(MILLIS), ((LocalDateTime) updateEvent.updateFields.get(16).value).truncatedTo(MILLIS));
-
-            assertEquals("timestamptz_field", updateEvent.updateFields.get(17).name);
-            assertEquals(update.timestamptz_field.truncatedTo(MILLIS), ((OffsetDateTime) updateEvent.updateFields.get(17).value).truncatedTo(MILLIS));
+            assertEquals("timestamptz_field", updateEvent.fields.get(16).name);
+            assertEquals(update.timestamptz_field.truncatedTo(MILLIS), ((OffsetDateTime) updateEvent.fields.get(16).value).truncatedTo(MILLIS));
         });
     }
 
+    @Test
+    public void should_handle_update_event_with_unique_index() {
+        QueryUtils.update(dataSource, "insert into table_with_unique_field(field_1, field_2) values(1, 'hello')");
+
+        drainWalMessages(dataSource, replicationName, replicationName);
+
+        collector.start();
+
+        QueryUtils.update(dataSource, "update table_with_unique_field set field_2 = 'world' where field_1 = 1");
+
+        eventually(() -> {
+            assertEquals(1, collectedTransactions.size());
+            EventTransaction transaction = collectedTransactions.get(0);
+
+            assertEquals(1, transaction.events.size());
+
+            UpdateEvent event = (UpdateEvent) transaction.events.get(0);
+
+            assertEquals(1, event.identifierFields.size());
+            assertEquals("field_1", event.identifierFields.get(0).name);
+            assertEquals(1, event.identifierFields.get(0).value);
+
+            assertEquals(1, event.fields.size());
+            assertEquals("field_2", event.fields.get(0).name);
+            assertEquals("world", event.fields.get(0).value);
+        });
+    }
+
+    @Test
+    public void should_handle_update_event_with_combined_unique_index() {
+        QueryUtils.update(dataSource, "insert into table_with_unique_field_combination(field_1, field_2) values(1, 'hello')");
+
+        drainWalMessages(dataSource, replicationName, replicationName);
+
+        collector.start();
+
+        QueryUtils.update(dataSource, "update table_with_unique_field_combination set field_2 = 'world' where field_1 = 1");
+
+        eventually(() -> {
+            assertEquals(1, collectedTransactions.size());
+            EventTransaction transaction = collectedTransactions.get(0);
+
+            assertEquals(1, transaction.events.size());
+
+            UpdateEvent event = (UpdateEvent) transaction.events.get(0);
+
+            assertEquals(2, event.identifierFields.size());
+            assertEquals("field_1", event.identifierFields.get(0).name);
+            assertEquals(1, event.identifierFields.get(0).value);
+            assertEquals("field_2", event.identifierFields.get(1).name);
+            assertEquals("hello", event.identifierFields.get(1).value);
+
+            assertEquals(1, event.fields.size());
+            assertEquals("field_2", event.fields.get(0).name);
+            assertEquals("world", event.fields.get(0).value);
+        });
+    }
+
+    @Test
+    public void should_handle_update_event_with_full_replica_identity() {
+        QueryUtils.update(dataSource, "insert into table_with_full_replica_identity(field_1, field_2) values(1, 'hello')");
+
+        drainWalMessages(dataSource, replicationName, replicationName);
+
+        collector.start();
+
+        QueryUtils.update(dataSource, "update table_with_full_replica_identity set field_2 = 'world' where field_1 = 1 and field_2 = 'hello'");
+
+        eventually(() -> {
+            assertEquals(1, collectedTransactions.size());
+            EventTransaction transaction = collectedTransactions.get(0);
+
+            assertEquals(1, transaction.events.size());
+
+            UpdateEvent event = (UpdateEvent) transaction.events.get(0);
+
+            assertEquals(2, event.identifierFields.size());
+            assertEquals("field_1", event.identifierFields.get(0).name);
+            assertEquals(1, event.identifierFields.get(0).value);
+            assertEquals("field_2", event.identifierFields.get(1).name);
+            assertEquals("hello", event.identifierFields.get(1).value);
+
+            assertEquals(2, event.fields.size());
+            assertEquals("field_1", event.fields.get(0).name);
+            assertEquals(1, event.fields.get(0).value);
+            assertEquals("field_2", event.fields.get(1).name);
+            assertEquals("world", event.fields.get(1).value);
+        });
+    }
 
 }

@@ -1,6 +1,5 @@
 package com.github.alexgaard.mirror.postgres.collector.message;
 
-import com.github.alexgaard.mirror.core.exception.ParseException;
 import com.github.alexgaard.mirror.postgres.utils.PgoutputParser;
 import com.github.alexgaard.mirror.postgres.utils.TupleDataColumn;
 
@@ -17,23 +16,23 @@ public class UpdateMessage extends Message {
 
     public final Character replicaIdentityType;
 
-    public final List<TupleDataColumn> identifyingColumns;
+    public final List<TupleDataColumn> oldTupleOrPkColumns;
 
-    public final List<TupleDataColumn> updatedColumns;
+    public final List<TupleDataColumn> columnsAfterUpdate;
 
     protected UpdateMessage(
             String lsn,
             int xid,
             int relationMessageOid,
             Character replicaIdentityType,
-            List<TupleDataColumn> identifyingColumns,
-            List<TupleDataColumn> updatedColumns
+            List<TupleDataColumn> oldTupleOrPkColumns,
+            List<TupleDataColumn> columnsAfterUpdate
     ) {
         super(lsn, xid, Type.UPDATE);
         this.relationMessageOid = relationMessageOid;
         this.replicaIdentityType = replicaIdentityType;
-        this.identifyingColumns = identifyingColumns;
-        this.updatedColumns = updatedColumns;
+        this.oldTupleOrPkColumns = oldTupleOrPkColumns;
+        this.columnsAfterUpdate = columnsAfterUpdate;
     }
 
     /*
@@ -82,6 +81,8 @@ public class UpdateMessage extends Message {
 
         if (replicaIdentityType != null) {
             identifyingColumns = parser.nextTupleData();
+
+            parser.nextChar(); // skip char 'N'
         }
 
         List<TupleDataColumn> updatedColumns = parser.nextTupleData();

@@ -255,11 +255,37 @@ public class PostgresCollector implements Collector {
                             .findAny()
                             .orElseThrow();
 
-                    // TODO: Check relation for which field is part of key
-                    // If type = K, then use identifyingColumns, else use relation with partOfKey
+                    List<Field<?>> identifyingFields;
+                    List<Field<?>> updatedFields;
 
-                    List<Field<?>> identifyingFields = toFields(update.identifyingColumns, relation);
-                    List<Field<?>> updatedFields = toFields(update.updatedColumns, relation);
+                    if (update.replicaIdentityType != null && update.replicaIdentityType == 'K') {
+                        // Identifying field was changed
+                        identifyingFields = toFields(update.oldTupleOrPkColumns, relation)
+                                .stream()
+                                .filter(f -> relation.columns.stream().anyMatch(c -> c.name.equals(f.name) && c.partOfKey))
+                                .collect(Collectors.toList());
+
+                        updatedFields = toFields(update.columnsAfterUpdate, relation)
+                                .stream()
+                                .filter(f -> !identifyingFields.contains(f)) // Remove fields that have not changed
+                                .collect(Collectors.toList());
+                    } else if (update.replicaIdentityType != null && update.replicaIdentityType == 'O') {
+                        // REPLICA IDENTITY = FULL, all the old fields must be used together as a key
+                        identifyingFields = toFields(update.oldTupleOrPkColumns, relation);
+                        updatedFields = toFields(update.columnsAfterUpdate, relation);
+                    } else {
+                        identifyingFields = toFields(update.columnsAfterUpdate, relation)
+                                .stream()
+                                .filter(f -> relation.columns.stream().anyMatch(c -> c.name.equals(f.name) && c.partOfKey))
+                                .collect(Collectors.toList());
+
+                        updatedFields = toFields(update.columnsAfterUpdate, relation)
+                                .stream()
+                                .filter(f -> relation.columns.stream().filter(c -> c.name.equals(f.name))
+                                        .findAny().map(c -> !c.partOfKey).orElse(true)
+                                )
+                                .collect(Collectors.toList());
+                    }
 
                     UpdateEvent updateEvent = new UpdateEvent(
                             UUID.randomUUID(),

@@ -9,21 +9,21 @@ public class UpdateEvent extends PostgresEvent {
 
     public final static String TYPE = "update";
 
-    public final List<Field<?>> identifyingFields;
+    public final List<Field<?>> identifierFields;
 
-    public final List<Field<?>> updateFields;
+    public final List<Field<?>> fields;
 
     // Used for deserialization
     public UpdateEvent() {
         super(null, TYPE, null, null, -1, null);
-        this.identifyingFields = null;
-        this.updateFields = null;
+        this.identifierFields = null;
+        this.fields = null;
     }
 
-    public UpdateEvent(UUID id, String namespace, String table, int transactionId, List<Field<?>> identifyingFields, List<Field<?>> updateFields, OffsetDateTime createdAt) {
+    public UpdateEvent(UUID id, String namespace, String table, int transactionId, List<Field<?>> identifierFields, List<Field<?>> fields, OffsetDateTime createdAt) {
         super(id, TYPE, namespace, table, transactionId, createdAt);
-        this.identifyingFields = identifyingFields;
-        this.updateFields = updateFields;
+        this.identifierFields = identifierFields;
+        this.fields = fields;
     }
 
     @Override
@@ -31,8 +31,8 @@ public class UpdateEvent extends PostgresEvent {
         return "UpdateEvent{" +
                 "namespace='" + namespace + '\'' +
                 ", table='" + table + '\'' +
-                ", identifyingFields=" + identifyingFields +
-                ", updateFields=" + updateFields +
+                ", identifierFields=" + identifierFields +
+                ", fields=" + fields +
                 ", id=" + id +
                 ", type='" + type + '\'' +
                 '}';

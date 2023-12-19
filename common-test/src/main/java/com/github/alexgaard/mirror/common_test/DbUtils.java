@@ -10,14 +10,20 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
-import static com.github.alexgaard.mirror.common_test.InitSql.createTableDataTypesSql;
 import static com.github.alexgaard.mirror.common_test.QueryUtils.query;
-import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.softenException;
 
 public class DbUtils {
 
     public static void initTables(DataSource dataSource) {
-        QueryUtils.update(dataSource, createTableDataTypesSql);
+        QueryUtils.update(dataSource, readResource("/init.sql"));
+    }
+
+    private static String readResource(String resourcePath) {
+        try (InputStream resourceStream = DbUtils.class.getResourceAsStream(resourcePath)) {
+            return new String(resourceStream.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static void drainWalMessages(DataSource dataSource, String replicationSlotName, String publicationName) {

@@ -15,11 +15,11 @@ public class UpdateMessageTest {
 
         assertEquals(49153, message.relationMessageOid);
         assertNull(message.replicaIdentityType);
-        assertTrue(message.identifyingColumns.isEmpty());
-        assertEquals(18, message.updatedColumns.size());
-        assertEquals("43", message.updatedColumns.get(0).getData());
-        assertEquals("8", message.updatedColumns.get(1).getData());
-        assertEquals("f", message.updatedColumns.get(9).getData());
+        assertTrue(message.oldTupleOrPkColumns.isEmpty());
+        assertEquals(18, message.columnsAfterUpdate.size());
+        assertEquals("43", message.columnsAfterUpdate.get(0).getData());
+        assertEquals("8", message.columnsAfterUpdate.get(1).getData());
+        assertEquals("f", message.columnsAfterUpdate.get(9).getData());
     }
 
 }
