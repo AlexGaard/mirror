@@ -8,6 +8,7 @@ import com.github.alexgaard.mirror.core.event.EventTransaction;
 import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
 import com.github.alexgaard.mirror.postgres.event.Field;
 import com.github.alexgaard.mirror.postgres.event.InsertEvent;
+import com.github.alexgaard.mirror.postgres.event.UpdateEvent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -93,6 +94,85 @@ public class PostgresProcessorTest {
         assertEquals(((LocalDateTime) fields.get(16).value).truncatedTo(MILLIS), dataTypes.timestamp_field.truncatedTo(MILLIS));
         assertEquals(((OffsetDateTime) fields.get(17).value).truncatedTo(MILLIS), dataTypes.timestamptz_field.truncatedTo(MILLIS));
     }
+
+    @Test
+    public void should_handle_update_event() {
+        DataTypesDbo dbo = new DataTypesDbo();
+        dbo.id = 859;
+
+        dataTypesRepository.insertDataTypes(dbo);
+
+        eventually(() -> {
+            assertNotNull(dataTypesRepository.getDataTypes(dbo.id));
+        });
+
+        PostgresProcessor processor = new PostgresProcessor(dataSource);
+
+        List<Field<?>> idFields = List.of(
+                new Field.Int32("id", dbo.id)
+        );
+
+        List<Field<?>> updateFields = List.of(
+                new Field.Text("text_field", "hello")
+        );
+
+        UpdateEvent update = new UpdateEvent(
+                UUID.randomUUID(),
+                "public",
+                "data_types",
+                6,
+                idFields,
+                updateFields,
+                OffsetDateTime.now()
+        );
+
+        processor.process(EventTransaction.of("test", update));
+
+        eventually(() -> {
+            assertEquals("hello", dataTypesRepository.getDataTypes(dbo.id).get().text_field);
+        });
+    }
+
+    @Test
+    public void should_handle_update_event_with_multiple_id_fields() {
+        DataTypesDbo dbo = new DataTypesDbo();
+        dbo.id = 859;
+        dbo.bool_field = true;
+
+        dataTypesRepository.insertDataTypes(dbo);
+
+        eventually(() -> {
+            assertNotNull(dataTypesRepository.getDataTypes(dbo.id));
+        });
+
+        PostgresProcessor processor = new PostgresProcessor(dataSource);
+
+        List<Field<?>> idFields = List.of(
+                new Field.Int32("id", dbo.id),
+                new Field.Boolean("bool_field", true)
+        );
+
+        List<Field<?>> updateFields = List.of(
+                new Field.Text("text_field", "hello")
+        );
+
+        UpdateEvent update = new UpdateEvent(
+                UUID.randomUUID(),
+                "public",
+                "data_types",
+                6,
+                idFields,
+                updateFields,
+                OffsetDateTime.now()
+        );
+
+        processor.process(EventTransaction.of("test", update));
+
+        eventually(() -> {
+            assertEquals("hello", dataTypesRepository.getDataTypes(dbo.id).get().text_field);
+        });
+    }
+
 
     @Test
     public void should_handle_delete_event() {

@@ -4,10 +4,7 @@ import com.github.alexgaard.mirror.core.Processor;
 import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.event.Event;
 import com.github.alexgaard.mirror.core.event.EventTransaction;
-import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
-import com.github.alexgaard.mirror.postgres.event.Field;
-import com.github.alexgaard.mirror.postgres.event.InsertEvent;
-import com.github.alexgaard.mirror.postgres.event.PostgresEvent;
+import com.github.alexgaard.mirror.postgres.event.*;
 import com.github.alexgaard.mirror.postgres.utils.QueryUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,6 +76,8 @@ public class PostgresProcessor implements Processor {
     private void handleDataChangeEvent(Event event, Connection connection) {
         if (event instanceof InsertEvent) {
             handleInsertDataChange((InsertEvent) event, connection);
+        } else if (event instanceof UpdateEvent) {
+            handleUpdateEvent((UpdateEvent) event, connection);
         } else if (event instanceof DeleteEvent) {
             handleDeleteEvent((DeleteEvent) event, connection);
         }
@@ -105,9 +104,33 @@ public class PostgresProcessor implements Processor {
         });
     }
 
+    private void handleUpdateEvent(UpdateEvent update, Connection connection) {
+        String setSql = update.fields.stream().map(f -> f.name + " = ?")
+                .collect(Collectors.joining(", "));
+
+        String whereSql = update.identifierFields.stream().map(f -> f.name + " = ?")
+                .collect(Collectors.joining(" and "));
+
+        String sql = format("UPDATE %s.%s SET %s WHERE %s", update.namespace, update.table, setSql, whereSql);
+
+        QueryUtils.update(connection, sql, statement -> {
+            int paramCounter = 1;
+
+            for (Field<?> field : update.fields) {
+                setParameter(statement, paramCounter++, field);
+            }
+
+            for (Field<?> field : update.identifierFields) {
+                setParameter(statement, paramCounter++, field);
+            }
+
+            statement.executeUpdate();
+        });
+    }
+
     private void handleDeleteEvent(DeleteEvent delete, Connection connection) {
         String whereSql = delete.identifierFields.stream().map(f -> f.name + " = ?")
-                .collect(Collectors.joining(", "));
+                .collect(Collectors.joining(" and "));
 
         String sql = format("DELETE FROM %s.%s WHERE %s", delete.namespace, delete.table, whereSql);
 
