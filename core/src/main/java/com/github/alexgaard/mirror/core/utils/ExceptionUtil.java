@@ -32,12 +32,17 @@ public class ExceptionUtil {
         };
     }
 
-    public static Result runWithResult(Supplier<Result> unsafeSupplier) {
+    public static Result runWithResult(UnsafeSupplier<Result> unsafeSupplier) {
         try {
             return unsafeSupplier.get();
         } catch (Exception e) {
             return Result.error(e);
         }
+    }
+
+    public interface UnsafeSupplier<T> {
+        T get() throws Exception;
+
     }
 
 }

@@ -69,7 +69,7 @@ public class PostgresProcessor implements Processor {
 
             connection.commit();
             connection.setAutoCommit(originalAutoCommit.get());
-        } catch (SQLException e) {
+        } catch (Exception e) {
             return Result.error(e);
         }
 

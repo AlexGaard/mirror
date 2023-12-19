@@ -67,19 +67,21 @@ public class RabbitMqReceiver implements Receiver {
         }
 
         DeliverCallback deliverCallback = (consumerTag, delivery) -> {
-            String message = new String(delivery.getBody(), StandardCharsets.UTF_8);
+            Result result = runWithResult(() -> {
+                String message = new String(delivery.getBody(), StandardCharsets.UTF_8);
 
-            EventTransaction transaction = deserializer.deserialize(message);
+                EventTransaction transaction = deserializer.deserialize(message);
+
+                return onEventReceived.consume(transaction);
+            });
 
             long tag = delivery.getEnvelope().getDeliveryTag();
-
-            Result result = runWithResult(() -> onEventReceived.consume(transaction));
 
             if (result.isOk()) {
                 channel.basicAck(tag, false);
             } else {
+                log.error("Failed to process transaction", result.getError().get());
                 channel.basicNack(tag, false, true);
-                log.error("Failed while consuming event transaction {}", transaction.id, result.getError().get());
             }
         };
 
