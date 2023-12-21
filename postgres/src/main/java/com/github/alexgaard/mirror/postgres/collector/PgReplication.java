@@ -144,7 +144,7 @@ public class PgReplication {
     }
 
     private static List<String> getAllTables(DataSource dataSource, String schema) {
-        String sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = ?";
+        String sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = ? and table_type = 'BASE TABLE'";
 
         return query(dataSource, sql, (statement) -> {
             statement.setString(1, schema);
