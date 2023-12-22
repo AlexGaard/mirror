@@ -31,9 +31,9 @@ public class RabbitMqReceiver implements Receiver {
 
     private EventTransactionConsumer onEventReceived;
 
-    private volatile Connection connection;
+    private Connection connection;
 
-    private volatile Channel channel;
+    private Channel channel;
 
     public RabbitMqReceiver(ConnectionFactory factory, String queueName, Deserializer deserializer) {
         this.factory = factory;
@@ -47,7 +47,7 @@ public class RabbitMqReceiver implements Receiver {
     }
 
     @Override
-    public void start() {
+    public synchronized void start() {
         if (connection == null || !connection.isOpen()) {
             try {
                 connection = factory.newConnection();
@@ -93,7 +93,7 @@ public class RabbitMqReceiver implements Receiver {
     }
 
     @Override
-    public void stop() {
+    public synchronized void stop() {
         if (channel != null && channel.isOpen()) {
             try {
                 channel.close();

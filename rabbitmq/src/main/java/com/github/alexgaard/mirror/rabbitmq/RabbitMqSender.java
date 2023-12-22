@@ -23,9 +23,9 @@ public class RabbitMqSender implements Sender {
 
     private final Serializer serializer;
 
-    private volatile Connection connection;
+    private Connection connection;
 
-    private volatile Channel channel;
+    private Channel channel;
 
     public RabbitMqSender(ConnectionFactory factory, String exchangeName, String routingKey, Serializer serializer) {
         this.factory = factory;
@@ -35,7 +35,7 @@ public class RabbitMqSender implements Sender {
     }
 
     @Override
-    public Result send(EventTransaction transaction) {
+    public synchronized Result send(EventTransaction transaction) {
         if (connection == null || !connection.isOpen()) {
             try {
                 connection = factory.newConnection();
@@ -64,7 +64,7 @@ public class RabbitMqSender implements Sender {
         }
     }
 
-    public void stop() {
+    public synchronized void close() {
         if (channel != null && channel.isOpen()) {
             try {
                 channel.close();

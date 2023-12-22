@@ -67,7 +67,7 @@ public class PostgresCollector implements Collector {
 
     private EventTransactionConsumer onTransactionCollected;
 
-    private volatile boolean isStarted = false;
+    private boolean isStarted = false;
 
     private long currentBackoffMs = 0;
 
