@@ -1,9 +1,9 @@
 package com.github.alexgaard.mirror.postgres.processor;
 
-import com.github.alexgaard.mirror.core.Processor;
+import com.github.alexgaard.mirror.core.EventSink;
 import com.github.alexgaard.mirror.core.Result;
-import com.github.alexgaard.mirror.core.event.Event;
-import com.github.alexgaard.mirror.core.event.EventTransaction;
+import com.github.alexgaard.mirror.core.Event;
+import com.github.alexgaard.mirror.core.EventTransaction;
 import com.github.alexgaard.mirror.postgres.event.*;
 import com.github.alexgaard.mirror.postgres.utils.QueryUtils;
 import org.slf4j.Logger;
@@ -23,9 +23,9 @@ import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.insertSki
 import static com.github.alexgaard.mirror.postgres.utils.SqlFieldType.sqlFieldType;
 import static java.lang.String.format;
 
-public class PostgresProcessor implements Processor {
+public class PostgresEventProcessor implements EventSink {
 
-    private final static Logger log = LoggerFactory.getLogger(PostgresProcessor.class);
+    private final static Logger log = LoggerFactory.getLogger(PostgresEventProcessor.class);
 
     private final AtomicBoolean originalAutoCommit = new AtomicBoolean();
 
@@ -33,12 +33,12 @@ public class PostgresProcessor implements Processor {
 
     private final DataSource dataSource;
 
-    public PostgresProcessor(DataSource dataSource) {
+    public PostgresEventProcessor(DataSource dataSource) {
         this.dataSource = dataSource;
     }
 
     @Override
-    public synchronized Result process(EventTransaction transaction) {
+    public synchronized Result consume(EventTransaction transaction) {
         int lastTransactionId = lastSourceTransactionId.getOrDefault(transaction.sourceName, 0);
 
         List<Event> filteredEvents = filterNewEvents(transaction.events, lastTransactionId);

@@ -2,8 +2,8 @@ package com.github.alexgaard.mirror.rabbitmq;
 
 import com.github.alexgaard.mirror.common_test.AsyncUtils;
 import com.github.alexgaard.mirror.core.Result;
-import com.github.alexgaard.mirror.core.event.Event;
-import com.github.alexgaard.mirror.core.event.EventTransaction;
+import com.github.alexgaard.mirror.core.Event;
+import com.github.alexgaard.mirror.core.EventTransaction;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -32,7 +32,7 @@ public class RabbitMqSendReceiveTest {
 
     @Test
     public void shouldSendAndReceiveMessage() {
-        RabbitMqReceiver receiver = new RabbitMqReceiver(
+        RabbitMqEventReceiver receiver = new RabbitMqEventReceiver(
                 RabbitMqSingletonContainer.createConnectionFactory(),
                 queue,
                 jsonDeserializer
@@ -40,7 +40,7 @@ public class RabbitMqSendReceiveTest {
 
         AtomicReference<EventTransaction> transactionRef = new AtomicReference<>();
 
-        receiver.setOnTransactionReceived((transaction) -> {
+        receiver.setEventSink((transaction) -> {
             transactionRef.set(transaction);
             return Result.ok();
         });
@@ -48,7 +48,7 @@ public class RabbitMqSendReceiveTest {
         receiver.start();
 
 
-        RabbitMqSender sender = new RabbitMqSender(RabbitMqSingletonContainer.createConnectionFactory(), exchange, routingKey, jsonSerializer);
+        RabbitMqEventSender sender = new RabbitMqEventSender(RabbitMqSingletonContainer.createConnectionFactory(), exchange, routingKey, jsonSerializer);
 
         OffsetDateTime nowUtc = OffsetDateTime.now(ZoneId.of("UTC"));
 
@@ -73,7 +73,7 @@ public class RabbitMqSendReceiveTest {
                 nowUtc
         );
 
-        sender.send(transaction);
+        sender.consume(transaction);
 
         AsyncUtils.eventually(() -> {
             assertNotNull(transactionRef.get());

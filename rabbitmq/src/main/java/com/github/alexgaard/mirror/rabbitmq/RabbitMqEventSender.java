@@ -1,8 +1,8 @@
 package com.github.alexgaard.mirror.rabbitmq;
 
-import com.github.alexgaard.mirror.core.Sender;
+import com.github.alexgaard.mirror.core.EventSink;
 import com.github.alexgaard.mirror.core.Result;
-import com.github.alexgaard.mirror.core.event.EventTransaction;
+import com.github.alexgaard.mirror.core.EventTransaction;
 import com.github.alexgaard.mirror.core.serde.Serializer;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
@@ -13,9 +13,9 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.util.concurrent.TimeoutException;
 
-public class RabbitMqSender implements Sender {
+public class RabbitMqEventSender implements EventSink {
 
-    private final static Logger log = LoggerFactory.getLogger(RabbitMqSender.class);
+    private final static Logger log = LoggerFactory.getLogger(RabbitMqEventSender.class);
 
     private final ConnectionFactory factory;
     private final String exchangeName;
@@ -27,7 +27,7 @@ public class RabbitMqSender implements Sender {
 
     private Channel channel;
 
-    public RabbitMqSender(ConnectionFactory factory, String exchangeName, String routingKey, Serializer serializer) {
+    public RabbitMqEventSender(ConnectionFactory factory, String exchangeName, String routingKey, Serializer serializer) {
         this.factory = factory;
         this.exchangeName = exchangeName;
         this.routingKey = routingKey;
@@ -35,7 +35,7 @@ public class RabbitMqSender implements Sender {
     }
 
     @Override
-    public synchronized Result send(EventTransaction transaction) {
+    public synchronized Result consume(EventTransaction transaction) {
         if (connection == null || !connection.isOpen()) {
             try {
                 connection = factory.newConnection();

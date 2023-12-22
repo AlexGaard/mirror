@@ -1,6 +1,6 @@
 package com.github.alexgaard.mirror.postgres.event;
 
-import com.github.alexgaard.mirror.core.event.Event;
+import com.github.alexgaard.mirror.core.Event;
 
 import java.time.OffsetDateTime;
 import java.util.UUID;

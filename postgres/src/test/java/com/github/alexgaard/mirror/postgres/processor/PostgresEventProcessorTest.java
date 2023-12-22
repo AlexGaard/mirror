@@ -4,7 +4,7 @@ import com.github.alexgaard.mirror.common_test.DataTypesDbo;
 import com.github.alexgaard.mirror.common_test.DataTypesRepository;
 import com.github.alexgaard.mirror.common_test.DbUtils;
 import com.github.alexgaard.mirror.common_test.PostgresSingletonContainer;
-import com.github.alexgaard.mirror.core.event.EventTransaction;
+import com.github.alexgaard.mirror.core.EventTransaction;
 import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
 import com.github.alexgaard.mirror.postgres.event.Field;
 import com.github.alexgaard.mirror.postgres.event.InsertEvent;
@@ -23,7 +23,7 @@ import static com.github.alexgaard.mirror.common_test.AsyncUtils.eventually;
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static org.junit.jupiter.api.Assertions.*;
 
-public class PostgresProcessorTest {
+public class PostgresEventProcessorTest {
 
     private static final DataSource dataSource = PostgresSingletonContainer.getDataSource();
 
@@ -37,7 +37,7 @@ public class PostgresProcessorTest {
 
     @Test
     public void should_handle_insert_event() {
-        PostgresProcessor processor = new PostgresProcessor(dataSource);
+        PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
 
         int id = 42;
 
@@ -70,7 +70,7 @@ public class PostgresProcessorTest {
                 OffsetDateTime.now()
         );
 
-        processor.process(EventTransaction.of("test", insert));
+        processor.consume(EventTransaction.of("test", insert));
 
         DataTypesDbo dataTypes = dataTypesRepository.getDataTypes(id)
                 .orElseThrow();
@@ -106,7 +106,7 @@ public class PostgresProcessorTest {
             assertNotNull(dataTypesRepository.getDataTypes(dbo.id));
         });
 
-        PostgresProcessor processor = new PostgresProcessor(dataSource);
+        PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
 
         List<Field<?>> idFields = List.of(
                 new Field.Int32("id", dbo.id)
@@ -126,7 +126,7 @@ public class PostgresProcessorTest {
                 OffsetDateTime.now()
         );
 
-        processor.process(EventTransaction.of("test", update));
+        processor.consume(EventTransaction.of("test", update));
 
         eventually(() -> {
             assertEquals("hello", dataTypesRepository.getDataTypes(dbo.id).get().text_field);
@@ -136,7 +136,7 @@ public class PostgresProcessorTest {
     @Test
     public void should_handle_update_event_with_multiple_id_fields() {
         DataTypesDbo dbo = new DataTypesDbo();
-        dbo.id = 859;
+        dbo.id = 546;
         dbo.bool_field = true;
 
         dataTypesRepository.insertDataTypes(dbo);
@@ -145,7 +145,7 @@ public class PostgresProcessorTest {
             assertNotNull(dataTypesRepository.getDataTypes(dbo.id));
         });
 
-        PostgresProcessor processor = new PostgresProcessor(dataSource);
+        PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
 
         List<Field<?>> idFields = List.of(
                 new Field.Int32("id", dbo.id),
@@ -166,7 +166,7 @@ public class PostgresProcessorTest {
                 OffsetDateTime.now()
         );
 
-        processor.process(EventTransaction.of("test", update));
+        processor.consume(EventTransaction.of("test", update));
 
         eventually(() -> {
             assertEquals("hello", dataTypesRepository.getDataTypes(dbo.id).get().text_field);
@@ -185,7 +185,7 @@ public class PostgresProcessorTest {
             assertNotNull(dataTypesRepository.getDataTypes(dbo.id));
         });
 
-        PostgresProcessor processor = new PostgresProcessor(dataSource);
+        PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
 
         List<Field<?>> fields = new ArrayList<>();
         fields.add(new Field<>("id", Field.Type.INT32, dbo.id));
@@ -199,7 +199,7 @@ public class PostgresProcessorTest {
                 OffsetDateTime.now()
         );
 
-        processor.process(EventTransaction.of("test", delete));
+        processor.consume(EventTransaction.of("test", delete));
 
         eventually(() -> {
             assertTrue(dataTypesRepository.getDataTypes(dbo.id).isEmpty());
@@ -208,7 +208,7 @@ public class PostgresProcessorTest {
 
     @Test
     public void should_skip_old_events() {
-        PostgresProcessor processor = new PostgresProcessor(dataSource);
+        PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
 
         int id1 = 67;
         int id2 = 68;
@@ -231,8 +231,8 @@ public class PostgresProcessorTest {
                 OffsetDateTime.now()
         );
 
-        processor.process(EventTransaction.of("test", insert1));
-        processor.process(EventTransaction.of("test", insert2));
+        processor.consume(EventTransaction.of("test", insert1));
+        processor.consume(EventTransaction.of("test", insert2));
 
         Optional<DataTypesDbo> dataTypes1 = dataTypesRepository.getDataTypes(id1);
         Optional<DataTypesDbo> dataTypes2 = dataTypesRepository.getDataTypes(id2);

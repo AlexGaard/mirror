@@ -1,9 +1,9 @@
 package com.github.alexgaard.mirror.rabbitmq;
 
-import com.github.alexgaard.mirror.core.Receiver;
+import com.github.alexgaard.mirror.core.EventSink;
+import com.github.alexgaard.mirror.core.EventSource;
 import com.github.alexgaard.mirror.core.Result;
-import com.github.alexgaard.mirror.core.event.EventTransactionConsumer;
-import com.github.alexgaard.mirror.core.event.EventTransaction;
+import com.github.alexgaard.mirror.core.EventTransaction;
 import com.github.alexgaard.mirror.core.serde.Deserializer;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
@@ -20,34 +20,50 @@ import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.runWithResult
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.softenException;
 
 
-public class RabbitMqReceiver implements Receiver {
+public class RabbitMqEventReceiver implements EventSource {
 
-    private final static Logger log = LoggerFactory.getLogger(RabbitMqReceiver.class);
+    private final static Logger log = LoggerFactory.getLogger(RabbitMqEventReceiver.class);
 
     private final ConnectionFactory factory;
     private final String queueName;
 
     private final Deserializer deserializer;
 
-    private EventTransactionConsumer onEventReceived;
+    private EventSink eventSink;
 
     private Connection connection;
 
     private Channel channel;
 
-    public RabbitMqReceiver(ConnectionFactory factory, String queueName, Deserializer deserializer) {
+    private boolean isStarted;
+
+    public RabbitMqEventReceiver(ConnectionFactory factory, String queueName, Deserializer deserializer) {
         this.factory = factory;
         this.queueName = queueName;
         this.deserializer = deserializer;
     }
 
     @Override
-    public void setOnTransactionReceived(EventTransactionConsumer onEventReceived) {
-        this.onEventReceived = onEventReceived;
+    public void setEventSink(EventSink eventSink) {
+        if (eventSink == null) {
+            throw new IllegalArgumentException("event sink cannot be null");
+        }
+
+        this.eventSink = eventSink;
     }
 
     @Override
     public synchronized void start() {
+        if (isStarted) {
+            return;
+        }
+
+        if (eventSink == null) {
+            throw new IllegalStateException("cannot start without a sink to consume the events");
+        }
+
+        isStarted = true;
+
         if (connection == null || !connection.isOpen()) {
             try {
                 connection = factory.newConnection();
@@ -72,7 +88,7 @@ public class RabbitMqReceiver implements Receiver {
 
                 EventTransaction transaction = deserializer.deserialize(message);
 
-                return onEventReceived.consume(transaction);
+                return eventSink.consume(transaction);
             });
 
             long tag = delivery.getEnvelope().getDeliveryTag();
@@ -94,6 +110,8 @@ public class RabbitMqReceiver implements Receiver {
 
     @Override
     public synchronized void stop() {
+        isStarted = false;
+
         if (channel != null && channel.isOpen()) {
             try {
                 channel.close();

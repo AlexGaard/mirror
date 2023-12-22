@@ -1,4 +1,4 @@
-package com.github.alexgaard.mirror.core.event;
+package com.github.alexgaard.mirror.core;
 
 import java.time.OffsetDateTime;
 import java.util.Collections;

@@ -1,10 +1,10 @@
 package com.github.alexgaard.mirror.postgres.collector;
 
-import com.github.alexgaard.mirror.core.Collector;
+import com.github.alexgaard.mirror.core.EventSink;
+import com.github.alexgaard.mirror.core.EventSource;
 import com.github.alexgaard.mirror.core.Result;
-import com.github.alexgaard.mirror.core.event.Event;
-import com.github.alexgaard.mirror.core.event.EventTransaction;
-import com.github.alexgaard.mirror.core.event.EventTransactionConsumer;
+import com.github.alexgaard.mirror.core.Event;
+import com.github.alexgaard.mirror.core.EventTransaction;
 import com.github.alexgaard.mirror.postgres.collector.message.*;
 import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
 import com.github.alexgaard.mirror.postgres.event.Field;
@@ -37,9 +37,9 @@ import static com.github.alexgaard.mirror.postgres.utils.FieldMapper.mapTupleDat
 import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.*;
 import static java.lang.String.format;
 
-public class PostgresCollector implements Collector {
+public class PostgresEventCollector implements EventSource {
 
-    private final Logger log = LoggerFactory.getLogger(PostgresCollector.class);
+    private final Logger log = LoggerFactory.getLogger(PostgresEventCollector.class);
 
     private final String replicationSlotName;
 
@@ -65,7 +65,7 @@ public class PostgresCollector implements Collector {
 
     private final AtomicInteger lastWalMessageCount = new AtomicInteger(0);
 
-    private EventTransactionConsumer onTransactionCollected;
+    private EventSink eventSink;
 
     private boolean isStarted = false;
 
@@ -73,7 +73,7 @@ public class PostgresCollector implements Collector {
 
     private ScheduledFuture<?> pollSchedule;
 
-    public PostgresCollector(String sourceName, DataSource dataSource, Duration pollInterval, PgReplication pgReplication) {
+    public PostgresEventCollector(String sourceName, DataSource dataSource, Duration pollInterval, PgReplication pgReplication) {
         this.sourceName = sourceName;
         this.dataSource = dataSource;
         this.dataChangePollInterval = pollInterval;
@@ -82,17 +82,17 @@ public class PostgresCollector implements Collector {
         this.publicationName = pgReplication.getPublicationName();
     }
 
-    public PostgresCollector(String sourceName, DataSource dataSource, PgReplication pgReplication) {
+    public PostgresEventCollector(String sourceName, DataSource dataSource, PgReplication pgReplication) {
         this(sourceName, dataSource, Duration.ofSeconds(1), pgReplication);
     }
 
     @Override
-    public void setOnTransactionCollected(EventTransactionConsumer onTransactionCollected) {
-        if (onTransactionCollected == null) {
-            throw new IllegalArgumentException("onTransactionCollected cannot be null");
+    public void setEventSink(EventSink eventSink) {
+        if (eventSink == null) {
+            throw new IllegalArgumentException("event sink cannot be null");
         }
 
-        this.onTransactionCollected = onTransactionCollected;
+        this.eventSink = eventSink;
     }
 
     @Override
@@ -101,8 +101,8 @@ public class PostgresCollector implements Collector {
             return;
         }
 
-        if (onTransactionCollected == null) {
-            throw new IllegalStateException("onTransactionCollected is missing");
+        if (eventSink == null) {
+            throw new IllegalStateException("cannot start without a sink to consume the events");
         }
 
         isStarted = true;
@@ -176,7 +176,7 @@ public class PostgresCollector implements Collector {
                         OffsetDateTime.now()
                 );
 
-                Result result = runWithResult(() -> onTransactionCollected.consume(transaction));
+                Result result = runWithResult(() -> eventSink.consume(transaction));
 
                 if (result.isError()) {
                     removeNextTransactions(connection, i + 1);
@@ -349,7 +349,7 @@ public class PostgresCollector implements Collector {
 
             ResultSet resultSet = statement.executeQuery();
 
-            return resultList(resultSet, PostgresCollector::toRawEvent);
+            return resultList(resultSet, PostgresEventCollector::toRawEvent);
         });
     }
 

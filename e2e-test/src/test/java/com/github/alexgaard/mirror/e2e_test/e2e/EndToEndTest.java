@@ -2,10 +2,10 @@ package com.github.alexgaard.mirror.e2e_test.e2e;
 
 import com.github.alexgaard.mirror.common_test.*;
 import com.github.alexgaard.mirror.postgres.collector.PgReplication;
-import com.github.alexgaard.mirror.postgres.collector.PostgresCollector;
-import com.github.alexgaard.mirror.postgres.processor.PostgresProcessor;
-import com.github.alexgaard.mirror.rabbitmq.RabbitMqReceiver;
-import com.github.alexgaard.mirror.rabbitmq.RabbitMqSender;
+import com.github.alexgaard.mirror.postgres.collector.PostgresEventCollector;
+import com.github.alexgaard.mirror.postgres.processor.PostgresEventProcessor;
+import com.github.alexgaard.mirror.rabbitmq.RabbitMqEventReceiver;
+import com.github.alexgaard.mirror.rabbitmq.RabbitMqEventSender;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -60,30 +60,30 @@ public class EndToEndTest {
                 .publicationName(name)
                 .allTables();
 
-        var collector1 = new PostgresCollector("test-1", dataSource1, Duration.ofMillis(100), pgReplication);
-        var sender1 = new RabbitMqSender(RabbitMqSingletonContainer.createConnectionFactory(), "my-exchange", "key-2", jsonSerializer);
+        var collector1 = new PostgresEventCollector("test-1", dataSource1, Duration.ofMillis(100), pgReplication);
+        var sender1 = new RabbitMqEventSender(RabbitMqSingletonContainer.createConnectionFactory(), "my-exchange", "key-2", jsonSerializer);
 
-        collector1.setOnTransactionCollected(sender1::send);
+        collector1.setEventSink(sender1);
         collector1.start();
 
-        var receiver1 = new RabbitMqReceiver(RabbitMqSingletonContainer.createConnectionFactory(), "my-queue-1", jsonDeserializer);
-        var processor1 = new PostgresProcessor(dataSource1);
+        var receiver1 = new RabbitMqEventReceiver(RabbitMqSingletonContainer.createConnectionFactory(), "my-queue-1", jsonDeserializer);
+        var processor1 = new PostgresEventProcessor(dataSource1);
 
-        receiver1.setOnTransactionReceived(processor1::process);
+        receiver1.setEventSink(processor1);
         receiver1.start();
 
         // ========================
 
-        var collector2 = new PostgresCollector("test-2", dataSource2, Duration.ofMillis(100), pgReplication);
-        var sender2 = new RabbitMqSender(RabbitMqSingletonContainer.createConnectionFactory(), "my-exchange", "key-1", jsonSerializer);
+        var collector2 = new PostgresEventCollector("test-2", dataSource2, Duration.ofMillis(100), pgReplication);
+        var sender2 = new RabbitMqEventSender(RabbitMqSingletonContainer.createConnectionFactory(), "my-exchange", "key-1", jsonSerializer);
 
-        collector2.setOnTransactionCollected((sender2::send));
+        collector2.setEventSink((sender2));
         collector2.start();
 
-        var receiver2 = new RabbitMqReceiver(RabbitMqSingletonContainer.createConnectionFactory(), "my-queue-2", jsonDeserializer);
-        var processor2 = new PostgresProcessor(dataSource2);
+        var receiver2 = new RabbitMqEventReceiver(RabbitMqSingletonContainer.createConnectionFactory(), "my-queue-2", jsonDeserializer);
+        var processor2 = new PostgresEventProcessor(dataSource2);
 
-        receiver2.setOnTransactionReceived(processor2::process);
+        receiver2.setEventSink(processor2);
         receiver2.start();
 
         // ========================

@@ -2,7 +2,7 @@ package com.github.alexgaard.mirror.postgres.collector;
 
 import com.github.alexgaard.mirror.common_test.*;
 import com.github.alexgaard.mirror.core.Result;
-import com.github.alexgaard.mirror.core.event.EventTransaction;
+import com.github.alexgaard.mirror.core.EventTransaction;
 import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
 import com.github.alexgaard.mirror.postgres.event.InsertEvent;
 import com.github.alexgaard.mirror.postgres.event.UpdateEvent;
@@ -25,11 +25,11 @@ import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.insertSki
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static org.junit.jupiter.api.Assertions.*;
 
-public class PostgresCollectorTest {
+public class PostgresEventCollectorTest {
 
     private static final DataSource dataSource = PostgresSingletonContainer.getDataSource();
 
-    private static PostgresCollector collector;
+    private static PostgresEventCollector collector;
 
     private static DataTypesRepository dataTypesRepository;
 
@@ -50,9 +50,9 @@ public class PostgresCollectorTest {
 
         pgReplication.setup(dataSource);
 
-        collector = new PostgresCollector("test", dataSource, Duration.ofMillis(100), pgReplication);
+        collector = new PostgresEventCollector("test", dataSource, Duration.ofMillis(100), pgReplication);
 
-        collector.setOnTransactionCollected(transaction -> {
+        collector.setEventSink(transaction -> {
             collectedTransactions.add(transaction);
             return Result.ok();
         });
@@ -187,8 +187,10 @@ public class PostgresCollectorTest {
 
     @Test
     public void should_handle_delete_event() {
+        int id = 8797;
+
         DataTypesDbo dbo = new DataTypesDbo();
-        dbo.id = 8797;
+        dbo.id = id;
         dbo.int2_field = 5;
 
         dataTypesRepository.insertDataTypes(dbo);
@@ -197,7 +199,7 @@ public class PostgresCollectorTest {
 
         collector.start();
 
-        dataTypesRepository.deleteDataTypeRow(42);
+        dataTypesRepository.deleteDataTypeRow(id);
 
         eventually(() -> {
             assertEquals(1, collectedTransactions.size());
@@ -208,7 +210,7 @@ public class PostgresCollectorTest {
             assertEquals("data_types", deleteEvent.table);
             assertEquals("public", deleteEvent.namespace);
             assertEquals(18, deleteEvent.identifierFields.size());
-            assertTrue(deleteEvent.identifierFields.stream().anyMatch(f -> f.name.equals("id") && ((Integer) 42).equals(f.value)));
+            assertTrue(deleteEvent.identifierFields.stream().anyMatch(f -> f.name.equals("id") && ((Integer) id).equals(f.value)));
         });
     }
 

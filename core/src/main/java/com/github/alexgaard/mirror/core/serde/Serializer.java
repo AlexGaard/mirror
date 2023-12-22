@@ -1,6 +1,6 @@
 package com.github.alexgaard.mirror.core.serde;
 
-import com.github.alexgaard.mirror.core.event.EventTransaction;
+import com.github.alexgaard.mirror.core.EventTransaction;
 
 import java.io.IOException;
 
