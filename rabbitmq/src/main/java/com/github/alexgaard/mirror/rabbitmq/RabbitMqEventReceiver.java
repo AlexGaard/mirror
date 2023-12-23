@@ -3,7 +3,7 @@ package com.github.alexgaard.mirror.rabbitmq;
 import com.github.alexgaard.mirror.core.EventSink;
 import com.github.alexgaard.mirror.core.EventSource;
 import com.github.alexgaard.mirror.core.Result;
-import com.github.alexgaard.mirror.core.EventTransaction;
+import com.github.alexgaard.mirror.core.Event;
 import com.github.alexgaard.mirror.core.serde.Deserializer;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
@@ -86,7 +86,7 @@ public class RabbitMqEventReceiver implements EventSource {
             Result result = runWithResult(() -> {
                 String message = new String(delivery.getBody(), StandardCharsets.UTF_8);
 
-                EventTransaction transaction = deserializer.deserialize(message);
+                Event transaction = deserializer.deserialize(message);
 
                 return eventSink.consume(transaction);
             });

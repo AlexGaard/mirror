@@ -3,7 +3,6 @@ package com.github.alexgaard.mirror.postgres.processor;
 import com.github.alexgaard.mirror.core.EventSink;
 import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.Event;
-import com.github.alexgaard.mirror.core.EventTransaction;
 import com.github.alexgaard.mirror.postgres.event.*;
 import com.github.alexgaard.mirror.postgres.utils.QueryUtils;
 import org.slf4j.Logger;
@@ -38,10 +37,16 @@ public class PostgresEventProcessor implements EventSink {
     }
 
     @Override
-    public synchronized Result consume(EventTransaction transaction) {
+    public synchronized Result consume(Event event) {
+        if (!(event instanceof PostgresTransactionEvent)) {
+            return Result.ok();
+        }
+
+        PostgresTransactionEvent transaction = (PostgresTransactionEvent) event;
+
         int lastTransactionId = lastSourceTransactionId.getOrDefault(transaction.sourceName, 0);
 
-        List<Event> filteredEvents = filterNewEvents(transaction.events, lastTransactionId);
+        List<DataChangeEvent> filteredEvents = filterNewEvents(transaction.events, lastTransactionId);
 
         if (filteredEvents.isEmpty()) {
             return Result.ok();
@@ -73,7 +78,7 @@ public class PostgresEventProcessor implements EventSink {
         return Result.ok();
     }
 
-    private void handleDataChangeEvent(Event event, Connection connection) {
+    private void handleDataChangeEvent(DataChangeEvent event, Connection connection) {
         if (event instanceof InsertEvent) {
             handleInsertDataChange((InsertEvent) event, connection);
         } else if (event instanceof UpdateEvent) {
@@ -177,34 +182,24 @@ public class PostgresEventProcessor implements EventSink {
         }
     }
 
-    private static List<Event> filterNewEvents(List<Event> events, int lastTransactionId) {
+    private static List<DataChangeEvent> filterNewEvents(List<DataChangeEvent> events, int lastTransactionId) {
         return events.stream().filter(e -> {
-            if (e instanceof PostgresEvent) {
-                var pgEvent = (PostgresEvent) e;
+            boolean isNew = e.transactionId > lastTransactionId;
 
-                boolean isNew = pgEvent.transactionId > lastTransactionId;
-
-                if (!isNew) {
-                    log.warn("Skipping event with old transaction id {}. Last transaction id was {}", pgEvent.transactionId, lastTransactionId);
-                }
-
-                return isNew;
+            if (!isNew) {
+                log.warn("Skipping event with old transaction id {}. Last transaction id was {}", e.transactionId, lastTransactionId);
             }
 
-            return true;
+            return isNew;
         }).collect(Collectors.toList());
     }
 
-    private static Integer findLastTransactionId(List<Event> events) {
-        for (int i = events.size() - 1; i >= 0; i--) {
-            Event event = events.get(i);
-
-            if (event instanceof PostgresEvent) {
-                return ((PostgresEvent) event).transactionId;
-            }
+    private static Integer findLastTransactionId(List<DataChangeEvent> events) {
+        if (events.isEmpty()) {
+            return 0;
         }
 
-        return 0;
+        return events.get(events.size() - 1).transactionId;
     }
 
 }

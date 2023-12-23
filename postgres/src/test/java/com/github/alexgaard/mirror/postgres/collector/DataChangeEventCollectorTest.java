@@ -2,9 +2,10 @@ package com.github.alexgaard.mirror.postgres.collector;
 
 import com.github.alexgaard.mirror.common_test.*;
 import com.github.alexgaard.mirror.core.Result;
-import com.github.alexgaard.mirror.core.EventTransaction;
+import com.github.alexgaard.mirror.core.Event;
 import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
 import com.github.alexgaard.mirror.postgres.event.InsertEvent;
+import com.github.alexgaard.mirror.postgres.event.PostgresTransactionEvent;
 import com.github.alexgaard.mirror.postgres.event.UpdateEvent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,7 +26,7 @@ import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.insertSki
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static org.junit.jupiter.api.Assertions.*;
 
-public class PostgresEventCollectorTest {
+public class DataChangeEventCollectorTest {
 
     private static final DataSource dataSource = PostgresSingletonContainer.getDataSource();
 
@@ -33,7 +34,7 @@ public class PostgresEventCollectorTest {
 
     private static DataTypesRepository dataTypesRepository;
 
-    private static final List<EventTransaction> collectedTransactions = new CopyOnWriteArrayList<>();
+    private static final List<PostgresTransactionEvent> collectedTransactions = new CopyOnWriteArrayList<>();
 
     private static final String replicationName = "mirror_" + ((int) (Math.random() * 10_000));
 
@@ -53,7 +54,10 @@ public class PostgresEventCollectorTest {
         collector = new PostgresEventCollector("test", dataSource, Duration.ofMillis(100), pgReplication);
 
         collector.setEventSink(transaction -> {
-            collectedTransactions.add(transaction);
+            if (transaction instanceof PostgresTransactionEvent) {
+                collectedTransactions.add((PostgresTransactionEvent) transaction);
+            }
+
             return Result.ok();
         });
     }
@@ -347,7 +351,7 @@ public class PostgresEventCollectorTest {
 
         eventually(() -> {
             assertEquals(1, collectedTransactions.size());
-            EventTransaction transaction = collectedTransactions.get(0);
+            PostgresTransactionEvent transaction = collectedTransactions.get(0);
 
             assertEquals(1, transaction.events.size());
 
@@ -375,7 +379,7 @@ public class PostgresEventCollectorTest {
 
         eventually(() -> {
             assertEquals(1, collectedTransactions.size());
-            EventTransaction transaction = collectedTransactions.get(0);
+            PostgresTransactionEvent transaction = collectedTransactions.get(0);
 
             assertEquals(1, transaction.events.size());
 
@@ -405,7 +409,7 @@ public class PostgresEventCollectorTest {
 
         eventually(() -> {
             assertEquals(1, collectedTransactions.size());
-            EventTransaction transaction = collectedTransactions.get(0);
+            PostgresTransactionEvent transaction = collectedTransactions.get(0);
 
             assertEquals(1, transaction.events.size());
 

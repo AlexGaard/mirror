@@ -4,16 +4,26 @@ import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
-public abstract class Event {
+public class Event {
 
     public final UUID id;
 
     public final String type;
 
+    public final String sourceName;
+
     public final OffsetDateTime createdAt;
 
-    public Event(UUID id, String type, OffsetDateTime createdAt) {
+    public Event() {
+        id = null;
+        type = null;
+        sourceName = null;
+        createdAt = null;
+    }
+
+    public Event(UUID id, String sourceName, String type, OffsetDateTime createdAt) {
         this.id = id;
+        this.sourceName = sourceName;
         this.type = type;
         this.createdAt = createdAt;
     }
@@ -22,13 +32,13 @@ public abstract class Event {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Event that = (Event) o;
-        return Objects.equals(id, that.id) && Objects.equals(type, that.type);
+        Event event = (Event) o;
+        return Objects.equals(id, event.id) && Objects.equals(type, event.type) && Objects.equals(sourceName, event.sourceName) && Objects.equals(createdAt, event.createdAt);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, type);
+        return Objects.hash(id, type, sourceName, createdAt);
     }
 
     @Override
@@ -36,6 +46,8 @@ public abstract class Event {
         return "Event{" +
                 "id=" + id +
                 ", type='" + type + '\'' +
+                ", sourceName='" + sourceName + '\'' +
+                ", createdAt=" + createdAt +
                 '}';
     }
 }

@@ -2,7 +2,7 @@ package com.github.alexgaard.mirror.rabbitmq;
 
 import com.github.alexgaard.mirror.core.EventSink;
 import com.github.alexgaard.mirror.core.Result;
-import com.github.alexgaard.mirror.core.EventTransaction;
+import com.github.alexgaard.mirror.core.Event;
 import com.github.alexgaard.mirror.core.serde.Serializer;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
@@ -35,7 +35,7 @@ public class RabbitMqEventSender implements EventSink {
     }
 
     @Override
-    public synchronized Result consume(EventTransaction transaction) {
+    public synchronized Result consume(Event transaction) {
         if (connection == null || !connection.isOpen()) {
             try {
                 connection = factory.newConnection();

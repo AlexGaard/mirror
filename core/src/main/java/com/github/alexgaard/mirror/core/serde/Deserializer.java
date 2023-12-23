@@ -1,11 +1,11 @@
 package com.github.alexgaard.mirror.core.serde;
 
-import com.github.alexgaard.mirror.core.EventTransaction;
+import com.github.alexgaard.mirror.core.Event;
 
 import java.io.IOException;
 
 public interface Deserializer {
 
-    EventTransaction deserialize(String data) throws IOException;
+    Event deserialize(String data) throws IOException;
 
 }

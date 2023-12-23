@@ -1,18 +1,15 @@
 package com.github.alexgaard.mirror.postgres_serde;
 
-import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
-import com.github.alexgaard.mirror.postgres.event.InsertEvent;
+import com.github.alexgaard.mirror.postgres.event.*;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
-import com.github.alexgaard.mirror.core.Event;
-import com.github.alexgaard.mirror.postgres.event.UpdateEvent;
 
 import java.io.IOException;
 
-public class EventDeserializer extends StdDeserializer<Event> {
+public class EventDeserializer extends StdDeserializer<DataChangeEvent> {
 
     public EventDeserializer() {
         this(null);
@@ -23,7 +20,7 @@ public class EventDeserializer extends StdDeserializer<Event> {
     }
 
     @Override
-    public Event deserialize(JsonParser jsonParser, DeserializationContext ctx) throws IOException {
+    public DataChangeEvent deserialize(JsonParser jsonParser, DeserializationContext ctx) throws IOException {
         final ObjectMapper mapper = (ObjectMapper) jsonParser.getCodec();
         final JsonNode node = mapper.readTree(jsonParser);
 

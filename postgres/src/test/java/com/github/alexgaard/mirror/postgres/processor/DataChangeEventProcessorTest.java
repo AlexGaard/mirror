@@ -4,11 +4,8 @@ import com.github.alexgaard.mirror.common_test.DataTypesDbo;
 import com.github.alexgaard.mirror.common_test.DataTypesRepository;
 import com.github.alexgaard.mirror.common_test.DbUtils;
 import com.github.alexgaard.mirror.common_test.PostgresSingletonContainer;
-import com.github.alexgaard.mirror.core.EventTransaction;
-import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
-import com.github.alexgaard.mirror.postgres.event.Field;
-import com.github.alexgaard.mirror.postgres.event.InsertEvent;
-import com.github.alexgaard.mirror.postgres.event.UpdateEvent;
+import com.github.alexgaard.mirror.core.Event;
+import com.github.alexgaard.mirror.postgres.event.*;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -23,7 +20,7 @@ import static com.github.alexgaard.mirror.common_test.AsyncUtils.eventually;
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static org.junit.jupiter.api.Assertions.*;
 
-public class PostgresEventProcessorTest {
+public class DataChangeEventProcessorTest {
 
     private static final DataSource dataSource = PostgresSingletonContainer.getDataSource();
 
@@ -66,11 +63,10 @@ public class PostgresEventProcessorTest {
                 "public",
                 "data_types",
                 1,
-                fields,
-                OffsetDateTime.now()
+                fields
         );
 
-        processor.consume(EventTransaction.of("test", insert));
+        processor.consume(PostgresTransactionEvent.of("test", insert));
 
         DataTypesDbo dataTypes = dataTypesRepository.getDataTypes(id)
                 .orElseThrow();
@@ -122,11 +118,10 @@ public class PostgresEventProcessorTest {
                 "data_types",
                 6,
                 idFields,
-                updateFields,
-                OffsetDateTime.now()
+                updateFields
         );
 
-        processor.consume(EventTransaction.of("test", update));
+        processor.consume(PostgresTransactionEvent.of("test", update));
 
         eventually(() -> {
             assertEquals("hello", dataTypesRepository.getDataTypes(dbo.id).get().text_field);
@@ -162,11 +157,10 @@ public class PostgresEventProcessorTest {
                 "data_types",
                 6,
                 idFields,
-                updateFields,
-                OffsetDateTime.now()
+                updateFields
         );
 
-        processor.consume(EventTransaction.of("test", update));
+        processor.consume(PostgresTransactionEvent.of("test", update));
 
         eventually(() -> {
             assertEquals("hello", dataTypesRepository.getDataTypes(dbo.id).get().text_field);
@@ -195,11 +189,10 @@ public class PostgresEventProcessorTest {
                 "public",
                 "data_types",
                 1,
-                fields,
-                OffsetDateTime.now()
+                fields
         );
 
-        processor.consume(EventTransaction.of("test", delete));
+        processor.consume(PostgresTransactionEvent.of("test", delete));
 
         eventually(() -> {
             assertTrue(dataTypesRepository.getDataTypes(dbo.id).isEmpty());
@@ -218,8 +211,7 @@ public class PostgresEventProcessorTest {
                 "public",
                 "data_types",
                 10,
-                List.of(new Field<>("id", Field.Type.INT32, id1)),
-                OffsetDateTime.now()
+                List.of(new Field<>("id", Field.Type.INT32, id1))
         );
 
         InsertEvent insert2 = new InsertEvent(
@@ -227,12 +219,11 @@ public class PostgresEventProcessorTest {
                 "public",
                 "data_types",
                 9,
-                List.of(new Field<>("id", Field.Type.INT32, id2)),
-                OffsetDateTime.now()
+                List.of(new Field<>("id", Field.Type.INT32, id2))
         );
 
-        processor.consume(EventTransaction.of("test", insert1));
-        processor.consume(EventTransaction.of("test", insert2));
+        processor.consume(PostgresTransactionEvent.of("test", insert1));
+        processor.consume(PostgresTransactionEvent.of("test", insert2));
 
         Optional<DataTypesDbo> dataTypes1 = dataTypesRepository.getDataTypes(id1);
         Optional<DataTypesDbo> dataTypes2 = dataTypesRepository.getDataTypes(id2);

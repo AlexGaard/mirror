@@ -5,10 +5,10 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.github.alexgaard.mirror.core.Event;
-import com.github.alexgaard.mirror.core.EventTransaction;
 import com.github.alexgaard.mirror.postgres.event.Field;
 import com.github.alexgaard.mirror.core.serde.Deserializer;
 import com.github.alexgaard.mirror.core.serde.Serializer;
+import com.github.alexgaard.mirror.postgres.event.DataChangeEvent;
 
 public class JsonSerde {
 
@@ -16,7 +16,7 @@ public class JsonSerde {
 
     public static final Serializer jsonSerializer = jsonMapper::writeValueAsString;
 
-    public static final Deserializer jsonDeserializer = (data -> jsonMapper.readValue(data, EventTransaction.class));
+    public static final Deserializer jsonDeserializer = (data -> jsonMapper.readValue(data, Event.class));
 
     private static ObjectMapper createMapper() {
         ObjectMapper mapper = new ObjectMapper()
@@ -24,7 +24,7 @@ public class JsonSerde {
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
         SimpleModule deserializers = new SimpleModule();
-        deserializers.addDeserializer(Event.class, new EventDeserializer());
+        deserializers.addDeserializer(DataChangeEvent.class, new EventDeserializer());
         deserializers.addDeserializer(Field.class, new FieldDeserializer());
         mapper.registerModule(deserializers);
 

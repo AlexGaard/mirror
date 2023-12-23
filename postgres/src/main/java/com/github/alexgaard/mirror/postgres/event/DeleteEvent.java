@@ -1,11 +1,10 @@
 package com.github.alexgaard.mirror.postgres.event;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-public class DeleteEvent extends PostgresEvent {
+public class DeleteEvent extends DataChangeEvent {
 
     public final static String TYPE = "delete";
 
@@ -13,12 +12,12 @@ public class DeleteEvent extends PostgresEvent {
 
     // Used for deserialization
     public DeleteEvent() {
-        super(null, TYPE, null, null, -1, null);
+        super(null, TYPE, null, null, -1);
         this.identifierFields = null;
     }
 
-    public DeleteEvent(UUID id, String namespace, String table, int transactionId, List<Field<?>> identifier, OffsetDateTime createdAt) {
-        super(id, TYPE, namespace, table, transactionId, createdAt);
+    public DeleteEvent(UUID id, String namespace, String table, int transactionId, List<Field<?>> identifier) {
+        super(id, TYPE, namespace, table, transactionId);
         this.identifierFields = identifier;
     }
 
@@ -26,26 +25,26 @@ public class DeleteEvent extends PostgresEvent {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+
         DeleteEvent that = (DeleteEvent) o;
+
         return Objects.equals(identifierFields, that.identifierFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), identifierFields);
+        return identifierFields != null ? identifierFields.hashCode() : 0;
     }
 
     @Override
     public String toString() {
         return "DeleteEvent{" +
                 "identifierFields=" + identifierFields +
+                ", id=" + id +
+                ", type='" + type + '\'' +
                 ", namespace='" + namespace + '\'' +
                 ", table='" + table + '\'' +
                 ", transactionId=" + transactionId +
-                ", id=" + id +
-                ", type='" + type + '\'' +
-                ", createdAt=" + createdAt +
                 '}';
     }
 }

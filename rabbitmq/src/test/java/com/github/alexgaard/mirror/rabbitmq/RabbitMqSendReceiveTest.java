@@ -3,7 +3,7 @@ package com.github.alexgaard.mirror.rabbitmq;
 import com.github.alexgaard.mirror.common_test.AsyncUtils;
 import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.Event;
-import com.github.alexgaard.mirror.core.EventTransaction;
+import com.github.alexgaard.mirror.postgres.event.PostgresTransactionEvent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -38,7 +38,7 @@ public class RabbitMqSendReceiveTest {
                 jsonDeserializer
         );
 
-        AtomicReference<EventTransaction> transactionRef = new AtomicReference<>();
+        AtomicReference<Event> transactionRef = new AtomicReference<>();
 
         receiver.setEventSink((transaction) -> {
             transactionRef.set(transaction);
@@ -52,32 +52,18 @@ public class RabbitMqSendReceiveTest {
 
         OffsetDateTime nowUtc = OffsetDateTime.now(ZoneId.of("UTC"));
 
-        List<Event> events = List.of(
-////                new InsertEvent(UUID.randomUUID(), "test", "my-table", 0, List.of(
-////                        new Field("id", Field.Type.INT32, 5)
-////                ), nowUtc),
-//                new UpdateEvent(UUID.randomUUID(), "test", "my-table", 0,
-//                        List.of(new Field("id", Field.Type.INT32, 5)),
-//                        List.of(new Field("name", Field.Type.TEXT, "hello")),
-//                nowUtc)
-////                new DeleteEvent(UUID.randomUUID(), "test", "my-table", 0, List.of(
-////                        new Field("id", Field.Type.INT32, 5)
-////                ), nowUtc)
-        );
-
-        EventTransaction transaction = new EventTransaction(
+        Event event = new Event(
                 UUID.randomUUID(),
+                "test-src",
                 "test",
-                events,
-                nowUtc,
                 nowUtc
         );
 
-        sender.consume(transaction);
+        sender.consume(event);
 
         AsyncUtils.eventually(() -> {
             assertNotNull(transactionRef.get());
-            assertEquals(jsonMapper.writeValueAsString(transaction), jsonMapper.writeValueAsString(transactionRef.get()));
+            assertEquals(jsonMapper.writeValueAsString(event), jsonMapper.writeValueAsString(transactionRef.get()));
         });
     }
 

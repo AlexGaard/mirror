@@ -3,6 +3,6 @@ package com.github.alexgaard.mirror.core;
 
 public interface EventSink {
 
-    Result consume(EventTransaction transaction);
+    Result consume(Event event);
 
 }

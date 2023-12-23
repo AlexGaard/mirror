@@ -3,13 +3,8 @@ package com.github.alexgaard.mirror.postgres.collector;
 import com.github.alexgaard.mirror.core.EventSink;
 import com.github.alexgaard.mirror.core.EventSource;
 import com.github.alexgaard.mirror.core.Result;
-import com.github.alexgaard.mirror.core.Event;
-import com.github.alexgaard.mirror.core.EventTransaction;
 import com.github.alexgaard.mirror.postgres.collector.message.*;
-import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
-import com.github.alexgaard.mirror.postgres.event.Field;
-import com.github.alexgaard.mirror.postgres.event.InsertEvent;
-import com.github.alexgaard.mirror.postgres.event.UpdateEvent;
+import com.github.alexgaard.mirror.postgres.event.*;
 import com.github.alexgaard.mirror.postgres.utils.PgMetadata;
 import com.github.alexgaard.mirror.postgres.utils.TupleDataColumn;
 import org.slf4j.Logger;
@@ -20,7 +15,6 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
-import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -161,19 +155,17 @@ public class PostgresEventCollector implements EventSource {
                     continue;
                 }
 
-                List<Event> transactionEvents = toEventTransaction(messages);
+                List<DataChangeEvent> transactionEvents = toEventTransaction(messages);
 
                 CommitMessage commit = (CommitMessage) transactionMessages.stream()
                         .filter(m -> m.type.equals(Message.Type.COMMIT))
                         .findAny()
                         .orElseThrow(() -> new IllegalStateException("Commit message is missing from transaction"));
 
-                var transaction = new EventTransaction(
-                        UUID.randomUUID(),
+                //TODO: pgTimestampToEpochMs(commit.commitTimestamp),
+                var transaction = PostgresTransactionEvent.of(
                         sourceName,
-                        transactionEvents,
-                        OffsetDateTime.now(), //TODO: pgTimestampToEpochMs(commit.commitTimestamp),
-                        OffsetDateTime.now()
+                        transactionEvents
                 );
 
                 Result result = runWithResult(() -> eventSink.consume(transaction));
@@ -196,8 +188,8 @@ public class PostgresEventCollector implements EventSource {
         }
     }
 
-    private List<Event> toEventTransaction(List<Message> msgTransaction) {
-        List<Event> eventTransaction = new ArrayList<>();
+    private List<DataChangeEvent> toEventTransaction(List<Message> msgTransaction) {
+        List<DataChangeEvent> event = new ArrayList<>();
 
         for (int i = 0; i < msgTransaction.size(); i++) {
             Message message = msgTransaction.get(i);
@@ -218,11 +210,10 @@ public class PostgresEventCollector implements EventSource {
                             relation.namespace,
                             relation.relationName,
                             insert.xid,
-                            fields,
-                            OffsetDateTime.now()
+                            fields
                     );
 
-                    eventTransaction.add(insertDataChange);
+                    event.add(insertDataChange);
                     break;
                 }
                 case DELETE: {
@@ -240,11 +231,10 @@ public class PostgresEventCollector implements EventSource {
                             relation.namespace,
                             relation.relationName,
                             delete.xid,
-                            fields,
-                            OffsetDateTime.now()
+                            fields
                     );
 
-                    eventTransaction.add(deleteEvent);
+                    event.add(deleteEvent);
                     break;
                 }
                 case UPDATE: {
@@ -293,18 +283,17 @@ public class PostgresEventCollector implements EventSource {
                             relation.relationName,
                             update.xid,
                             identifyingFields,
-                            updatedFields,
-                            OffsetDateTime.now()
+                            updatedFields
                     );
 
-                    eventTransaction.add(updateEvent);
+                    event.add(updateEvent);
                     break;
                 }
             }
 
         }
 
-        return eventTransaction;
+        return event;
     }
 
     private List<Field<?>> toFields(List<TupleDataColumn> columns, RelationMessage relation) {
