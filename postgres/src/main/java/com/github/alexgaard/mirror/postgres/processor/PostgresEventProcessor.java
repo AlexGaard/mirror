@@ -60,8 +60,6 @@ public class PostgresEventProcessor implements EventSink {
                 filteredEvents.forEach(e -> handleDataChangeEvent(e, connection));
 
                 insertSkipTransactionMessage(connection);
-
-                lastSourceTransactionId.put(transaction.sourceName, findLastTransactionId(filteredEvents));
             } catch (Exception e) {
                 log.error("Caught exception while processing events", e);
                 connection.rollback();
@@ -71,6 +69,8 @@ public class PostgresEventProcessor implements EventSink {
 
             connection.commit();
             connection.setAutoCommit(originalAutoCommit.get());
+
+            lastSourceTransactionId.put(transaction.sourceName, findLastTransactionId(filteredEvents));
         } catch (Exception e) {
             return Result.error(e);
         }
