@@ -24,7 +24,8 @@ public class JsonSerde {
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
 
         SimpleModule deserializers = new SimpleModule();
-        deserializers.addDeserializer(DataChangeEvent.class, new EventDeserializer());
+        deserializers.addDeserializer(Event.class, new EventDeserializer());
+        deserializers.addDeserializer(DataChangeEvent.class, new DataChangeEventDeserializer());
         deserializers.addDeserializer(Field.class, new FieldDeserializer());
         mapper.registerModule(deserializers);
 

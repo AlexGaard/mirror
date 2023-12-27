@@ -17,7 +17,6 @@
             <groupId>com.github.alexgaard.mirror</groupId>
             <artifactId>core</artifactId>
         </dependency>
-
         <dependency>
             <groupId>com.rabbitmq</groupId>
             <artifactId>amqp-client</artifactId>
@@ -25,12 +24,17 @@
 
         <dependency>
             <groupId>com.github.alexgaard.mirror</groupId>
-            <artifactId>postgres-serde</artifactId>
+            <artifactId>common-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>com.github.alexgaard.mirror</groupId>
-            <artifactId>common-test</artifactId>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

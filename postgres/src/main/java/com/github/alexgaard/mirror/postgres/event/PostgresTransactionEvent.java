@@ -29,7 +29,7 @@ public class PostgresTransactionEvent extends Event {
     }
 
     public static PostgresTransactionEvent of(String sourceName, List<DataChangeEvent> events) {
-        return new PostgresTransactionEvent(UUID.randomUUID(), TYPE, sourceName, events, OffsetDateTime.now());
+        return new PostgresTransactionEvent(UUID.randomUUID(), sourceName, TYPE, events, OffsetDateTime.now());
     }
 
     public static PostgresTransactionEvent of(String sourceName, DataChangeEvent event) {

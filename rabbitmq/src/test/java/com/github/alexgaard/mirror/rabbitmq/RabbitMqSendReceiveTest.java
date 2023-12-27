@@ -1,19 +1,19 @@
 package com.github.alexgaard.mirror.rabbitmq;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.github.alexgaard.mirror.common_test.AsyncUtils;
+import com.github.alexgaard.mirror.common_test.RabbitMqSingletonContainer;
 import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.Event;
-import com.github.alexgaard.mirror.postgres.event.PostgresTransactionEvent;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.github.alexgaard.mirror.postgres_serde.JsonSerde.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -25,6 +25,8 @@ public class RabbitMqSendReceiveTest {
 
     private static final String routingKey = "key-" + UUID.randomUUID();
 
+    private static final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+
     @BeforeAll
     public static void setup() {
         RabbitMqSingletonContainer.setupExchangeWithQueue(queue, exchange, routingKey);
@@ -35,7 +37,7 @@ public class RabbitMqSendReceiveTest {
         RabbitMqEventReceiver receiver = new RabbitMqEventReceiver(
                 RabbitMqSingletonContainer.createConnectionFactory(),
                 queue,
-                jsonDeserializer
+                (data) -> objectMapper.readValue(data, Event.class)
         );
 
         AtomicReference<Event> transactionRef = new AtomicReference<>();
@@ -48,7 +50,12 @@ public class RabbitMqSendReceiveTest {
         receiver.start();
 
 
-        RabbitMqEventSender sender = new RabbitMqEventSender(RabbitMqSingletonContainer.createConnectionFactory(), exchange, routingKey, jsonSerializer);
+        RabbitMqEventSender sender = new RabbitMqEventSender(
+                RabbitMqSingletonContainer.createConnectionFactory(),
+                exchange,
+                routingKey,
+                (transaction) -> objectMapper.writeValueAsString(transaction)
+        );
 
         OffsetDateTime nowUtc = OffsetDateTime.now(ZoneId.of("UTC"));
 
@@ -63,7 +70,7 @@ public class RabbitMqSendReceiveTest {
 
         AsyncUtils.eventually(() -> {
             assertNotNull(transactionRef.get());
-            assertEquals(jsonMapper.writeValueAsString(event), jsonMapper.writeValueAsString(transactionRef.get()));
+            assertEquals(objectMapper.writeValueAsString(event), objectMapper.writeValueAsString(transactionRef.get()));
         });
     }
 

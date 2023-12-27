@@ -1,15 +1,16 @@
 package com.github.alexgaard.mirror.postgres_serde;
 
-import com.github.alexgaard.mirror.postgres.event.*;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
+import com.github.alexgaard.mirror.core.Event;
+import com.github.alexgaard.mirror.postgres.event.*;
 
 import java.io.IOException;
 
-public class EventDeserializer extends StdDeserializer<DataChangeEvent> {
+public class EventDeserializer extends StdDeserializer<Event> {
 
     public EventDeserializer() {
         this(null);
@@ -20,25 +21,17 @@ public class EventDeserializer extends StdDeserializer<DataChangeEvent> {
     }
 
     @Override
-    public DataChangeEvent deserialize(JsonParser jsonParser, DeserializationContext ctx) throws IOException {
+    public Event deserialize(JsonParser jsonParser, DeserializationContext ctx) throws IOException {
         final ObjectMapper mapper = (ObjectMapper) jsonParser.getCodec();
         final JsonNode node = mapper.readTree(jsonParser);
 
         String type = node.get("type").asText();
 
-        switch (type) {
-            case InsertEvent.TYPE: {
-                return mapper.treeToValue(node, InsertEvent.class);
-            }
-            case UpdateEvent.TYPE: {
-                return mapper.treeToValue(node, UpdateEvent.class);
-            }
-            case DeleteEvent.TYPE: {
-                return mapper.treeToValue(node, DeleteEvent.class);
-            }
-            default:
-                throw new IllegalArgumentException("Unable to deserialize unknown event of type " + type);
+        if (PostgresTransactionEvent.TYPE.equals(type)) {
+            return mapper.treeToValue(node, PostgresTransactionEvent.class);
         }
+
+        return mapper.treeToValue(node, Event.class);
     }
 
 }
