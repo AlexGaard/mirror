@@ -14,26 +14,26 @@ public class PostgresTransactionEvent extends Event {
 
     public final List<DataChangeEvent> events;
 
-    public final OffsetDateTime commitedAt;
+    public final OffsetDateTime committedAt;
 
     public PostgresTransactionEvent() {
         super(null, null, null, null);
         this.events = null;
-        this.commitedAt = null;
+        this.committedAt = null;
     }
 
-    public PostgresTransactionEvent(UUID id, String sourceName, String type, List<DataChangeEvent> events, OffsetDateTime commitedAt) {
-        super(id, sourceName, type, commitedAt);
+    public PostgresTransactionEvent(UUID id, String sourceName, String type, List<DataChangeEvent> events, OffsetDateTime committedAt) {
+        super(id, sourceName, type, committedAt);
         this.events = events;
-        this.commitedAt = commitedAt;
+        this.committedAt = committedAt;
     }
 
-    public static PostgresTransactionEvent of(String sourceName, List<DataChangeEvent> events) {
-        return new PostgresTransactionEvent(UUID.randomUUID(), sourceName, TYPE, events, OffsetDateTime.now());
+    public static PostgresTransactionEvent of(String sourceName, List<DataChangeEvent> events, OffsetDateTime committedAt) {
+        return new PostgresTransactionEvent(UUID.randomUUID(), sourceName, TYPE, events, committedAt);
     }
 
     public static PostgresTransactionEvent of(String sourceName, DataChangeEvent event) {
-        return of(sourceName, Collections.singletonList(event));
+        return of(sourceName, Collections.singletonList(event), OffsetDateTime.now());
     }
 
     @Override
@@ -45,14 +45,14 @@ public class PostgresTransactionEvent extends Event {
         PostgresTransactionEvent that = (PostgresTransactionEvent) o;
 
         if (!Objects.equals(events, that.events)) return false;
-        return Objects.equals(commitedAt, that.commitedAt);
+        return Objects.equals(committedAt, that.committedAt);
     }
 
     @Override
     public int hashCode() {
         int result = super.hashCode();
         result = 31 * result + (events != null ? events.hashCode() : 0);
-        result = 31 * result + (commitedAt != null ? commitedAt.hashCode() : 0);
+        result = 31 * result + (committedAt != null ? committedAt.hashCode() : 0);
         return result;
     }
 
@@ -60,7 +60,7 @@ public class PostgresTransactionEvent extends Event {
     public String toString() {
         return "PostgresTransactionEvent{" +
                 "events=" + events +
-                ", commitedAt=" + commitedAt +
+                ", committedAt=" + committedAt +
                 ", id=" + id +
                 ", eventType='" + type + '\'' +
                 ", sourceName='" + sourceName + '\'' +

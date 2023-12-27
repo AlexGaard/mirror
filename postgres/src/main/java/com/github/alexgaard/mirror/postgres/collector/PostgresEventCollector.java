@@ -5,7 +5,8 @@ import com.github.alexgaard.mirror.core.EventSource;
 import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.postgres.collector.message.*;
 import com.github.alexgaard.mirror.postgres.event.*;
-import com.github.alexgaard.mirror.postgres.utils.PgMetadata;
+import com.github.alexgaard.mirror.postgres.metadata.PgMetadata;
+import com.github.alexgaard.mirror.postgres.utils.PgTimestamp;
 import com.github.alexgaard.mirror.postgres.utils.TupleDataColumn;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -162,10 +163,10 @@ public class PostgresEventCollector implements EventSource {
                         .findAny()
                         .orElseThrow(() -> new IllegalStateException("Commit message is missing from transaction"));
 
-                //TODO: pgTimestampToEpochMs(commit.commitTimestamp),
                 var transaction = PostgresTransactionEvent.of(
                         sourceName,
-                        transactionEvents
+                        transactionEvents,
+                        PgTimestamp.toOffsetDateTime(commit.commitTimestamp)
                 );
 
                 Result result = runWithResult(() -> eventSink.consume(transaction));
