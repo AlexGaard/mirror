@@ -68,9 +68,9 @@ public class PostgresEventProcessor implements EventSink {
             }
 
             connection.commit();
-            connection.setAutoCommit(originalAutoCommit.get());
-
             lastSourceTransactionId.put(transaction.sourceName, findLastTransactionId(filteredEvents));
+
+            connection.setAutoCommit(originalAutoCommit.get());
         } catch (Exception e) {
             return Result.error(e);
         }
@@ -89,8 +89,7 @@ public class PostgresEventProcessor implements EventSink {
     }
 
     private void handleInsertDataChange(InsertEvent insert, Connection connection) {
-        // Add option for on conflict do nothing
-        // Add field validation
+        // TODO: Add option for on conflict do nothing
 
         String fields = createSqlFieldsParameters(insert.fields);
 

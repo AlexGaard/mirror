@@ -4,6 +4,7 @@ import javax.sql.DataSource;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.softenException;
 
@@ -11,6 +12,11 @@ public class QueryUtils {
 
     public interface ResultSetMapper<T> {
         T map(ResultSet resultSet) throws SQLException;
+
+    }
+
+    public interface ResultSetIterator {
+        void accept(ResultSet resultSet) throws SQLException;
 
     }
 
@@ -32,6 +38,12 @@ public class QueryUtils {
         }
 
         return events;
+    }
+
+    public static void resultForEach(ResultSet resultSet, ResultSetIterator forEach) throws SQLException {
+        while (resultSet.next()) {
+            forEach.accept(resultSet);
+        }
     }
 
     public static <T> T query(DataSource dataSource, String sql, PreparedStatementQuery<T> query) {

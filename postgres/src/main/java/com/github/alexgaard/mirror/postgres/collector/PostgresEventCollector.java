@@ -58,8 +58,6 @@ public class PostgresEventCollector implements EventSource {
 
     private final PgReplication pgReplication;
 
-    private final AtomicInteger lastWalMessageCount = new AtomicInteger(0);
-
     private EventSink eventSink;
 
     private boolean isStarted = false;
@@ -127,80 +125,92 @@ public class PostgresEventCollector implements EventSource {
         }
     }
 
-    public int getLastWalMessageCount() {
-        return lastWalMessageCount.get();
-    }
-
-    private void checkForDataChanges() {
+    private void checkForDataChanges() throws InterruptedException {
         try (Connection connection = dataSource.getConnection()) {
-            List<RawMessage> rawMessages = peekDataChanges(connection);
+            int transactionIdx = 0;
 
-            lastWalMessageCount.set(rawMessages.size());
+            try {
+                List<RawMessage> rawMessages = peekDataChanges(connection);
 
-            if (rawMessages.isEmpty()) {
-                return;
-            }
-
-            List<Message> messages = rawMessages
-                    .stream()
-                    .map(MessageParser::parse)
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-
-            List<List<Message>> transactions = splitIntoTransactions(messages);
-
-            for (int i = 0; i < transactions.size(); i++) {
-                List<Message> transactionMessages = transactions.get(i);
-
-                if (shouldTransactionBeSkipped(transactionMessages)) {
-                    continue;
-                }
-
-                List<DataChangeEvent> transactionEvents = toEventTransaction(messages);
-
-                CommitMessage commit = (CommitMessage) transactionMessages.stream()
-                        .filter(m -> m.type.equals(Message.Type.COMMIT))
-                        .findAny()
-                        .orElseThrow(() -> new IllegalStateException("Commit message is missing from transaction"));
-
-                var transaction = PostgresTransactionEvent.of(
-                        sourceName,
-                        transactionEvents,
-                        PgTimestamp.toOffsetDateTime(commit.commitTimestamp)
-                );
-
-                Result result = runWithResult(() -> eventSink.consume(transaction));
-
-                if (result.isError()) {
-                    removeNextTransactions(connection, i + 1);
-
-                    log.error("Caught exception while sending events", result.getError().get());
-
-                    currentBackoffMs = Math.min(currentBackoffMs + backoffIncreaseMs, maxBackoffMs);
-                    Thread.sleep(currentBackoffMs);
+                if (rawMessages.isEmpty()) {
                     return;
                 }
-            }
 
-            removeNextTransactions(connection, transactions.size());
-            currentBackoffMs = 0;
+                List<Message> messages = rawMessages
+                        .stream()
+                        .map(MessageParser::parse)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
+
+                // Relation messages are sometimes reused across transactions to save bandwidth if enough transactions use the same relation.
+                List<RelationMessage> relationMessages = messages.stream()
+                        .filter(m -> m instanceof RelationMessage)
+                        .map(m -> (RelationMessage) m)
+                        .collect(Collectors.toList());
+
+                List<List<Message>> transactions = splitIntoTransactions(messages);
+
+                for (; transactionIdx < transactions.size(); transactionIdx++) {
+                    List<Message> transactionMessages = transactions.get(transactionIdx);
+
+                    if (shouldTransactionBeSkipped(transactionMessages)) {
+                        continue;
+                    }
+
+                    List<DataChangeEvent> transactionEvents = toEventTransaction(transactionMessages, relationMessages);
+
+                    CommitMessage commit = (CommitMessage) transactionMessages.stream()
+                            .filter(m -> m.type.equals(Message.Type.COMMIT))
+                            .findAny()
+                            .orElseThrow();
+
+                    var transaction = PostgresTransactionEvent.of(
+                            sourceName,
+                            transactionEvents,
+                            PgTimestamp.toOffsetDateTime(commit.commitTimestamp)
+                    );
+
+                    Result result = runWithResult(() -> eventSink.consume(transaction));
+
+                    if (result.isError()) {
+                        removeNextTransactions(connection, transactionIdx);
+
+                        log.error("Caught exception while consuming transaction", result.getError().get());
+
+                        currentBackoffMs = Math.min(currentBackoffMs + backoffIncreaseMs, maxBackoffMs);
+                        Thread.sleep(currentBackoffMs);
+                        return;
+                    }
+                }
+
+                removeNextTransactions(connection, transactions.size());
+                currentBackoffMs = 0;
+            } catch (Exception e) {
+                log.error("Caught exception while retrieving WAL messages", e);
+                removeNextTransactions(connection, transactionIdx);
+
+                // TODO: Maybe move backoff into safeRunnable()
+                currentBackoffMs = Math.min(currentBackoffMs + backoffIncreaseMs, maxBackoffMs);
+                Thread.sleep(currentBackoffMs);
+            }
         } catch (Exception e) {
-            log.error("Caught exception while retrieving WAL messages", e);
+            log.error("Uncaught exception while retrieving WAL messages", e);
+            currentBackoffMs = Math.min(currentBackoffMs + backoffIncreaseMs, maxBackoffMs);
+            Thread.sleep(currentBackoffMs);
         }
     }
 
-    private List<DataChangeEvent> toEventTransaction(List<Message> msgTransaction) {
+    private List<DataChangeEvent> toEventTransaction(List<Message> msgTransaction, List<RelationMessage> relationMessages) {
         List<DataChangeEvent> event = new ArrayList<>();
 
-        for (int i = 0; i < msgTransaction.size(); i++) {
-            Message message = msgTransaction.get(i);
-
+        for (Message message : msgTransaction) {
             switch (message.type) {
                 case INSERT: {
                     InsertMessage insert = (InsertMessage) message;
 
-                    RelationMessage relation = (RelationMessage) msgTransaction.stream()
-                            .filter(t -> t instanceof RelationMessage && ((RelationMessage) t).oid == insert.relationMessageOid)
+                    RelationMessage relation = relationMessages
+                            .stream()
+                            .filter(m -> m.oid == insert.relationMessageOid)
                             .findAny()
                             .orElseThrow();
 
@@ -220,8 +230,9 @@ public class PostgresEventCollector implements EventSource {
                 case DELETE: {
                     DeleteMessage delete = (DeleteMessage) message;
 
-                    RelationMessage relation = (RelationMessage) msgTransaction.stream()
-                            .filter(t -> t instanceof RelationMessage && ((RelationMessage) t).oid == delete.relationMessageOid)
+                    RelationMessage relation = relationMessages
+                            .stream()
+                            .filter(m -> m.oid == delete.relationMessageOid)
                             .findAny()
                             .orElseThrow();
 
@@ -241,8 +252,9 @@ public class PostgresEventCollector implements EventSource {
                 case UPDATE: {
                     UpdateMessage update = (UpdateMessage) message;
 
-                    RelationMessage relation = (RelationMessage) msgTransaction.stream()
-                            .filter(t -> t instanceof RelationMessage && ((RelationMessage) t).oid == update.relationMessageOid)
+                    RelationMessage relation = relationMessages
+                            .stream()
+                            .filter(m -> m.oid == update.relationMessageOid)
                             .findAny()
                             .orElseThrow();
 
@@ -319,6 +331,10 @@ public class PostgresEventCollector implements EventSource {
     }
 
     private void removeNextTransactions(Connection connection, int transactionsToRemove) {
+        if (transactionsToRemove <= 0) {
+            return;
+        }
+
         String sql = "SELECT 1 FROM pg_logical_slot_get_binary_changes(?, NULL, ?, 'messages', 'true', 'proto_version', '1', 'publication_names', ?)";
 
         query(connection, sql, statement -> {

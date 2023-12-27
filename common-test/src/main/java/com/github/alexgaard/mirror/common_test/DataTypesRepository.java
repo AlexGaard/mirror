@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static com.github.alexgaard.mirror.common_test.QueryUtils.resultList;
+import static com.github.alexgaard.mirror.common_test.QueryUtils.update;
 
 public class DataTypesRepository {
 
@@ -35,13 +36,25 @@ public class DataTypesRepository {
         });
     }
 
+    public int getDataTypesCount() {
+        return QueryUtils.query(dataSource, "SELECT count(*) FROM data_types", statement -> {
+            ResultSet resultSet = statement.executeQuery();
+            resultSet.next();
+            return resultSet.getInt(1);
+        });
+    }
+
     public void deleteDataTypeRow(int id) {
         String sql = "DELETE FROM data_types WHERE id = ?";
 
-        QueryUtils.update(dataSource, sql, statement -> {
+        update(dataSource, sql, statement -> {
             statement.setInt(1, id);
             statement.executeUpdate();
         });
+    }
+
+    public void clear() {
+        update(dataSource, "DELETE FROM data_types");
     }
 
     public void insertDataTypes(DataTypesDbo dbo) {
@@ -66,7 +79,7 @@ public class DataTypesRepository {
                 "id"+
                 ") values (?,?,?,?,?,?::uuid,?,?,?,?,?,?::json,?::jsonb,?,?,?,?,?)";
 
-        QueryUtils.update(dataSource, sql, statement -> {
+        update(dataSource, sql, statement -> {
             setFields(dbo, statement, 0);
 
             if (dbo.id != null) {
@@ -100,7 +113,7 @@ public class DataTypesRepository {
                 "timestamptz_field = ?" +
                 " where id = ?";
 
-        QueryUtils.update(dataSource, sql, statement -> {
+        update(dataSource, sql, statement -> {
             setFields(dbo, statement, 0);
             statement.setInt(18, dbo.id);
             statement.executeUpdate();

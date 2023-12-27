@@ -2,7 +2,6 @@ package com.github.alexgaard.mirror.postgres.collector;
 
 import com.github.alexgaard.mirror.common_test.*;
 import com.github.alexgaard.mirror.core.Result;
-import com.github.alexgaard.mirror.core.Event;
 import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
 import com.github.alexgaard.mirror.postgres.event.InsertEvent;
 import com.github.alexgaard.mirror.postgres.event.PostgresTransactionEvent;
@@ -21,12 +20,14 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.github.alexgaard.mirror.common_test.AsyncUtils.eventually;
 import static com.github.alexgaard.mirror.common_test.DbUtils.drainWalMessages;
+import static com.github.alexgaard.mirror.common_test.TestDataGenerator.newId;
 import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.insertSkipTransactionMessage;
 
+import static java.lang.String.format;
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static org.junit.jupiter.api.Assertions.*;
 
-public class DataChangeEventCollectorTest {
+public class PostgresEventCollectorTest {
 
     private static final DataSource dataSource = PostgresSingletonContainer.getDataSource();
 
@@ -75,7 +76,7 @@ public class DataChangeEventCollectorTest {
         collector.start();
 
         DataTypesDbo dbo = new DataTypesDbo();
-        dbo.id = (int) (Math.random() * 10000);
+        dbo.id = newId();
         dbo.int2_field = 5;
         dbo.int4_field = 100;
         dbo.int8_field = 48L;
@@ -169,7 +170,7 @@ public class DataChangeEventCollectorTest {
         collector.start();
 
         DataTypesDbo dbo = new DataTypesDbo();
-        dbo.id = (int) (Math.random() * 10000);
+        dbo.id = newId();
 
         dataTypesRepository.insertDataTypes(dbo);
 
@@ -225,7 +226,7 @@ public class DataChangeEventCollectorTest {
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             try (Statement statement = connection.createStatement()) {
-                statement.execute("insert into data_types (id) values (89)");
+                statement.execute(format("insert into data_types (id) values (%d)", newId()));
             }
 
             insertSkipTransactionMessage(connection);
@@ -235,7 +236,7 @@ public class DataChangeEventCollectorTest {
         }
 
         try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
-            statement.execute("insert into data_types (id) values (90)");
+            statement.execute(format("insert into data_types (id) values (%d)", newId()));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -248,7 +249,7 @@ public class DataChangeEventCollectorTest {
     @Test
     public void should_handle_update_event() {
         DataTypesDbo dbo = new DataTypesDbo();
-        dbo.id = 87;
+        dbo.id = newId();
         dbo.int2_field = 5;
 
         dataTypesRepository.insertDataTypes(dbo);
@@ -258,7 +259,7 @@ public class DataChangeEventCollectorTest {
         collector.start();
 
         DataTypesDbo update = new DataTypesDbo();
-        update.id = 87;
+        update.id = dbo.id;
         update.int2_field = 5;
         update.int4_field = 100;
         update.int8_field = 48L;

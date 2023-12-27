@@ -22,7 +22,7 @@ public class ExceptionUtil {
         throw (T) t;
     }
 
-    public static Runnable safeRunnable(Runnable runnable) {
+    public static Runnable safeRunnable(UnsafeRunnable runnable) {
         return () -> {
             try {
                 runnable.run();
@@ -38,6 +38,11 @@ public class ExceptionUtil {
         } catch (Exception e) {
             return Result.error(e);
         }
+    }
+
+    public interface UnsafeRunnable {
+        void run() throws Exception;
+
     }
 
     public interface UnsafeSupplier<T> {

@@ -4,7 +4,6 @@ import com.github.alexgaard.mirror.common_test.DataTypesDbo;
 import com.github.alexgaard.mirror.common_test.DataTypesRepository;
 import com.github.alexgaard.mirror.common_test.DbUtils;
 import com.github.alexgaard.mirror.common_test.PostgresSingletonContainer;
-import com.github.alexgaard.mirror.core.Event;
 import com.github.alexgaard.mirror.postgres.event.*;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -17,10 +16,11 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static com.github.alexgaard.mirror.common_test.AsyncUtils.eventually;
+import static com.github.alexgaard.mirror.common_test.TestDataGenerator.newId;
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static org.junit.jupiter.api.Assertions.*;
 
-public class DataChangeEventProcessorTest {
+public class PostgresEventProcessorTest {
 
     private static final DataSource dataSource = PostgresSingletonContainer.getDataSource();
 
@@ -36,7 +36,7 @@ public class DataChangeEventProcessorTest {
     public void should_handle_insert_event() {
         PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
 
-        int id = 42;
+        int id = newId();
 
         List<Field<?>> fields = new ArrayList<>();
         fields.add(new Field.Int32("id", id));
@@ -94,7 +94,7 @@ public class DataChangeEventProcessorTest {
     @Test
     public void should_handle_update_event() {
         DataTypesDbo dbo = new DataTypesDbo();
-        dbo.id = 859;
+        dbo.id = newId();
 
         dataTypesRepository.insertDataTypes(dbo);
 
@@ -131,7 +131,7 @@ public class DataChangeEventProcessorTest {
     @Test
     public void should_handle_update_event_with_multiple_id_fields() {
         DataTypesDbo dbo = new DataTypesDbo();
-        dbo.id = 546;
+        dbo.id = newId();
         dbo.bool_field = true;
 
         dataTypesRepository.insertDataTypes(dbo);
@@ -171,7 +171,7 @@ public class DataChangeEventProcessorTest {
     @Test
     public void should_handle_delete_event() {
         DataTypesDbo dbo = new DataTypesDbo();
-        dbo.id = 78;
+        dbo.id = newId();
 
         dataTypesRepository.insertDataTypes(dbo);
 
@@ -203,8 +203,8 @@ public class DataChangeEventProcessorTest {
     public void should_skip_old_events() {
         PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
 
-        int id1 = 67;
-        int id2 = 68;
+        int id1 = newId();
+        int id2 = newId();
 
         InsertEvent insert1 = new InsertEvent(
                 UUID.randomUUID(),

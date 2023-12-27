@@ -1,14 +1,13 @@
-package com.github.alexgaard.mirror.postgres.utils;
+package com.github.alexgaard.mirror.postgres.metadata;
 
 import com.github.alexgaard.mirror.postgres.event.Field;
 import com.github.alexgaard.mirror.core.exception.NotYetImplementedException;
 
 import javax.sql.DataSource;
 import java.sql.*;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
+import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.*;
 import static java.lang.String.format;
 
 public class PgMetadata {
@@ -36,6 +35,69 @@ public class PgMetadata {
         }
 
         return pgDataTypes;
+    }
+
+    public static Map<String, List<ColumnMetadata>> getColumnMetadataForTables(DataSource dataSource, String schema) {
+        String sql = "select con.*\n" +
+                "from pg_catalog.pg_constraint con\n" +
+                "         inner join pg_catalog.pg_class rel\n" +
+                "                    on rel.oid = con.conrelid\n" +
+                "         inner join pg_catalog.pg_namespace nsp\n" +
+                "                    on nsp.oid = connamespace\n" +
+                "where nsp.nspname = ?";
+
+        Map<String, List<ColumnMetadata>> metadata = new HashMap<>();
+
+        query(dataSource, sql, statement -> {
+            statement.setString(1, schema);
+
+            ResultSet resultSet = statement.executeQuery();
+
+            resultForEach(resultSet, (rs) -> {
+                String table = rs.getString("table_name");
+
+                List<ColumnMetadata> columns = metadata.computeIfAbsent(table, (ignored) -> new ArrayList<>());
+
+                columns.add(new ColumnMetadata(rs.getString("column_name"), rs.getInt("ordinal_position"), "YES".equals(rs.getString("is_nullable"))));
+            });
+        });
+
+        return metadata;
+    }
+
+    public static class ColumnMetadata {
+
+        public final String name;
+
+        public final int ordinalPosition;
+
+        public final boolean isNullable;
+
+        public ColumnMetadata(String name, int ordinalPosition, boolean isNullable) {
+            this.name = name;
+            this.ordinalPosition = ordinalPosition;
+            this.isNullable = isNullable;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            ColumnMetadata that = (ColumnMetadata) o;
+
+            if (ordinalPosition != that.ordinalPosition) return false;
+            if (isNullable != that.isNullable) return false;
+            return name.equals(that.name);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = name.hashCode();
+            result = 31 * result + ordinalPosition;
+            result = 31 * result + (isNullable ? 1 : 0);
+            return result;
+        }
     }
 
     public static class PgDataType {
