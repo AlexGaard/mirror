@@ -60,4 +60,35 @@ public class CommitMessage extends Message {
         return new CommitMessage(msg.lsn, msg.xid, commitLsn, transactionEndLsn, commitTimestamp);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        CommitMessage that = (CommitMessage) o;
+
+        if (commitLsn != that.commitLsn) return false;
+        if (transactionEndLsn != that.transactionEndLsn) return false;
+        return commitTimestamp == that.commitTimestamp;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = (int) (commitLsn ^ (commitLsn >>> 32));
+        result = 31 * result + (int) (transactionEndLsn ^ (transactionEndLsn >>> 32));
+        result = 31 * result + (int) (commitTimestamp ^ (commitTimestamp >>> 32));
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "CommitMessage{" +
+                "commitLsn=" + commitLsn +
+                ", transactionEndLsn=" + transactionEndLsn +
+                ", commitTimestamp=" + commitTimestamp +
+                ", lsn='" + lsn + '\'' +
+                ", xid=" + xid +
+                ", type=" + type +
+                '}';
+    }
 }

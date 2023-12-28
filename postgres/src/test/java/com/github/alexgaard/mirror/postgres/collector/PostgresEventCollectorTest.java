@@ -21,6 +21,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import static com.github.alexgaard.mirror.common_test.AsyncUtils.eventually;
 import static com.github.alexgaard.mirror.common_test.DbUtils.drainWalMessages;
 import static com.github.alexgaard.mirror.common_test.TestDataGenerator.newId;
+import static com.github.alexgaard.mirror.common_test.TestDataGenerator.newReplicationName;
 import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.insertSkipTransactionMessage;
 
 import static java.lang.String.format;
@@ -37,7 +38,7 @@ public class PostgresEventCollectorTest {
 
     private static final List<PostgresTransactionEvent> collectedTransactions = new CopyOnWriteArrayList<>();
 
-    private static final String replicationName = "mirror_" + ((int) (Math.random() * 10_000));
+    private static final String replicationName = newReplicationName();
 
     @BeforeAll
     public static void setup() {

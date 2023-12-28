@@ -1,6 +1,7 @@
 package com.github.alexgaard.mirror.e2e_test.e2e;
 
 import com.github.alexgaard.mirror.common_test.*;
+import com.github.alexgaard.mirror.core.utils.ExceptionUtil;
 import com.github.alexgaard.mirror.postgres.collector.PgReplication;
 import com.github.alexgaard.mirror.postgres.collector.PostgresEventCollector;
 import com.github.alexgaard.mirror.postgres.processor.PostgresEventProcessor;
@@ -8,6 +9,7 @@ import com.github.alexgaard.mirror.rabbitmq.RabbitMqEventReceiver;
 import com.github.alexgaard.mirror.rabbitmq.RabbitMqEventSender;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import javax.sql.DataSource;
@@ -19,7 +21,7 @@ import static com.github.alexgaard.mirror.common_test.AsyncUtils.eventually;
 import static com.github.alexgaard.mirror.common_test.TestDataGenerator.*;
 import static com.github.alexgaard.mirror.postgres_serde.JsonSerde.jsonDeserializer;
 import static com.github.alexgaard.mirror.postgres_serde.JsonSerde.jsonSerializer;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class EndToEndTest {
 
@@ -31,8 +33,34 @@ public class EndToEndTest {
 
     private static DataSource dataSource2;
 
+    private DataTypesRepository repo1;
+    private DataTypesRepository repo2;
+
+    private String name;
+
+    private String exchange;
+
+    private String queue1;
+    private String queue2;
+
+    private String key1;
+    private String key2;
+
+    private PostgresEventCollector collector1;
+    private RabbitMqEventSender sender1;
+
+    private RabbitMqEventReceiver receiver1;
+    private PostgresEventProcessor processor1;
+
+    private PostgresEventCollector collector2;
+    private RabbitMqEventSender sender2;
+
+    private RabbitMqEventReceiver receiver2;
+    private PostgresEventProcessor processor2;
+
+    
     @BeforeAll
-    public static void setup() {
+    public static void init() {
         container1.start();
         container2.start();
 
@@ -41,6 +69,57 @@ public class EndToEndTest {
 
         DbUtils.initTables(dataSource1);
         DbUtils.initTables(dataSource2);
+    }
+    
+    @BeforeEach
+    public void setup() {
+        repo1 = new DataTypesRepository(dataSource1);
+        repo2 = new DataTypesRepository(dataSource2);
+
+        name = newReplicationName();
+
+        exchange = newRabbitMqExchange();
+
+        queue1 = newRabbitMqQueue();
+        queue2 = newRabbitMqQueue();
+
+        key1 = newRabbitMqKey();
+        key2 = newRabbitMqKey();
+
+        RabbitMqSingletonContainer.setupExchangeWithQueue(queue1, exchange, key1);
+        RabbitMqSingletonContainer.setupExchangeWithQueue(queue2, exchange, key2);
+
+        PgReplication pgReplication = new PgReplication()
+                .replicationSlotName(name)
+                .publicationName(name)
+                .allTables();
+
+        collector1 = new PostgresEventCollector("test-1", dataSource1, Duration.ofMillis(100), pgReplication);
+        sender1 = new RabbitMqEventSender(RabbitMqSingletonContainer.createConnectionFactory(), exchange, key2, jsonSerializer);
+
+        receiver1 = new RabbitMqEventReceiver(RabbitMqSingletonContainer.createConnectionFactory(), queue1, jsonDeserializer);
+        processor1 = new PostgresEventProcessor(dataSource1);
+
+        collector2 = new PostgresEventCollector("test-2", dataSource2, Duration.ofMillis(100), pgReplication);
+        sender2 = new RabbitMqEventSender(RabbitMqSingletonContainer.createConnectionFactory(), exchange, key1, jsonSerializer);
+
+        receiver2 = new RabbitMqEventReceiver(RabbitMqSingletonContainer.createConnectionFactory(), queue2, jsonDeserializer);
+        processor2 = new PostgresEventProcessor(dataSource2);
+
+        repo1.clear();
+        repo2.clear();
+
+        collector1.setEventSink(sender1);
+        collector1.start();
+
+        receiver1.setEventSink(processor1);
+        receiver1.start();
+
+        collector2.setEventSink((sender2));
+        collector2.start();
+
+        receiver2.setEventSink(processor2);
+        receiver2.start();
     }
 
     @AfterAll
@@ -51,50 +130,6 @@ public class EndToEndTest {
 
     @Test
     public void should_propagate_events_from_one_database_to_another() {
-        String name = newReplicationName();
-        String exchange = newRabbitMqExchange();
-        String queue1 = newRabbitMqQueue();
-        String queue2 = newRabbitMqQueue();
-
-        RabbitMqSingletonContainer.setupExchangeWithQueue(queue1, exchange, "key-1");
-        RabbitMqSingletonContainer.setupExchangeWithQueue(queue2, exchange, "key-2");
-
-        PgReplication pgReplication = new PgReplication()
-                .replicationSlotName(name)
-                .publicationName(name)
-                .allTables();
-
-        var collector1 = new PostgresEventCollector("test-1", dataSource1, Duration.ofMillis(100), pgReplication);
-        var sender1 = new RabbitMqEventSender(RabbitMqSingletonContainer.createConnectionFactory(), exchange, "key-2", jsonSerializer);
-
-        collector1.setEventSink(sender1);
-        collector1.start();
-
-        var receiver1 = new RabbitMqEventReceiver(RabbitMqSingletonContainer.createConnectionFactory(), queue1, jsonDeserializer);
-        var processor1 = new PostgresEventProcessor(dataSource1);
-
-        receiver1.setEventSink(processor1);
-        receiver1.start();
-
-        // ========================
-
-        var collector2 = new PostgresEventCollector("test-2", dataSource2, Duration.ofMillis(100), pgReplication);
-        var sender2 = new RabbitMqEventSender(RabbitMqSingletonContainer.createConnectionFactory(), exchange, "key-1", jsonSerializer);
-
-        collector2.setEventSink((sender2));
-        collector2.start();
-
-        var receiver2 = new RabbitMqEventReceiver(RabbitMqSingletonContainer.createConnectionFactory(), queue2, jsonDeserializer);
-        var processor2 = new PostgresEventProcessor(dataSource2);
-
-        receiver2.setEventSink(processor2);
-        receiver2.start();
-
-        // ========================
-
-        DataTypesRepository repo1 = new DataTypesRepository(dataSource1);
-        DataTypesRepository repo2 = new DataTypesRepository(dataSource2);
-
         DataTypesDbo dbo1 = new DataTypesDbo();
         dbo1.id = newId();
         dbo1.int2_field = 5;
@@ -121,8 +156,6 @@ public class EndToEndTest {
             DataTypesDbo dboFrom2 = repo2.getDataTypes(dbo1.id).orElseThrow();
             assertEquals(dbo1, dboFrom2);
         });
-
-        // ========================
 
         DataTypesDbo dbo2 = new DataTypesDbo();
         dbo2.id = newId();
@@ -153,65 +186,33 @@ public class EndToEndTest {
     }
 
     @Test
+    public void should_send_receive_delete_event() {
+        DataTypesDbo dbo1 = new DataTypesDbo();
+        dbo1.id = newId();
+
+        repo1.insertDataTypes(dbo1);
+
+        eventually(() -> assertNotNull(repo2.getDataTypes(dbo1.id)));
+
+        repo1.deleteDataTypeRow(dbo1.id);
+
+        eventually(() -> assertNull(repo2.getDataTypes(dbo1.id)));
+    }
+
+    @Test
     public void should_send_and_receive_many_events() {
-        String name = newReplicationName();
-        String exchange = newRabbitMqExchange();
-        String queue1 = newRabbitMqQueue();
-        String queue2 = newRabbitMqQueue();
+        int events = 500;
 
-        RabbitMqSingletonContainer.setupExchangeWithQueue(queue1, exchange, "key-1");
-        RabbitMqSingletonContainer.setupExchangeWithQueue(queue2, exchange, "key-2");
-
-        PgReplication pgReplication = new PgReplication()
-                .replicationSlotName(name)
-                .publicationName(name)
-                .allTables();
-
-        var collector1 = new PostgresEventCollector("test-1", dataSource1, Duration.ofMillis(100), pgReplication);
-        var sender1 = new RabbitMqEventSender(RabbitMqSingletonContainer.createConnectionFactory(), exchange, "key-2", jsonSerializer);
-
-        collector1.setEventSink(sender1);
-        collector1.start();
-
-        var receiver1 = new RabbitMqEventReceiver(RabbitMqSingletonContainer.createConnectionFactory(), queue1, jsonDeserializer);
-        var processor1 = new PostgresEventProcessor(dataSource1);
-
-        receiver1.setEventSink(processor1);
-        receiver1.start();
-
-        // ========================
-
-        var collector2 = new PostgresEventCollector("test-2", dataSource2, Duration.ofMillis(100), pgReplication);
-        var sender2 = new RabbitMqEventSender(RabbitMqSingletonContainer.createConnectionFactory(), exchange, "key-1", jsonSerializer);
-
-        collector2.setEventSink((sender2));
-        collector2.start();
-
-        var receiver2 = new RabbitMqEventReceiver(RabbitMqSingletonContainer.createConnectionFactory(), queue2, jsonDeserializer);
-        var processor2 = new PostgresEventProcessor(dataSource2);
-
-        receiver2.setEventSink(processor2);
-        receiver2.start();
-
-        // ========================
-
-        DataTypesRepository repo1 = new DataTypesRepository(dataSource1);
-        DataTypesRepository repo2 = new DataTypesRepository(dataSource2);
-
-        repo2.clear();
-
-        int changes = 50;
-
-        for (int i = 0; i < changes; i++) {
+        for (int i = 0; i < events; i++) {
             DataTypesDbo dbo1 = new DataTypesDbo();
             dbo1.id = newId();
 
             repo1.insertDataTypes(dbo1);
         }
 
-        eventually(Duration.ofSeconds(3000), () -> {
+        eventually(Duration.ofSeconds(30), () -> {
             int count = repo2.getDataTypesCount();
-            assertEquals(changes, count);
+            assertEquals(events, count);
         });
     }
 

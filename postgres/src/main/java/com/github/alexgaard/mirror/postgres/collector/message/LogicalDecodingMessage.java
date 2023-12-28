@@ -2,6 +2,8 @@ package com.github.alexgaard.mirror.postgres.collector.message;
 
 import com.github.alexgaard.mirror.postgres.utils.PgoutputParser;
 
+import java.util.Arrays;
+
 import static com.github.alexgaard.mirror.postgres.collector.message.MessageParser.badMessageId;
 
 public class LogicalDecodingMessage extends Message {
@@ -70,5 +72,38 @@ public class LogicalDecodingMessage extends Message {
         return new LogicalDecodingMessage(msg.lsn, msg.xid, flags == 1, lsn, prefix, content);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
 
+        LogicalDecodingMessage that = (LogicalDecodingMessage) o;
+
+        if (isTransactional != that.isTransactional) return false;
+        if (lsn != that.lsn) return false;
+        if (!prefix.equals(that.prefix)) return false;
+        return Arrays.equals(content, that.content);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = (isTransactional ? 1 : 0);
+        result = 31 * result + (int) (lsn ^ (lsn >>> 32));
+        result = 31 * result + prefix.hashCode();
+        result = 31 * result + Arrays.hashCode(content);
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "LogicalDecodingMessage{" +
+                "isTransactional=" + isTransactional +
+                ", lsn=" + lsn +
+                ", prefix='" + prefix + '\'' +
+                ", content=" + Arrays.toString(content) +
+                ", lsn='" + lsn + '\'' +
+                ", xid=" + xid +
+                ", type=" + type +
+                '}';
+    }
 }

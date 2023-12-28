@@ -128,4 +128,41 @@ public class RelationMessage extends Message {
 
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        RelationMessage that = (RelationMessage) o;
+
+        if (oid != that.oid) return false;
+        if (replicaId != that.replicaId) return false;
+        if (!namespace.equals(that.namespace)) return false;
+        if (!relationName.equals(that.relationName)) return false;
+        return columns.equals(that.columns);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = oid;
+        result = 31 * result + namespace.hashCode();
+        result = 31 * result + relationName.hashCode();
+        result = 31 * result + (int) replicaId;
+        result = 31 * result + columns.hashCode();
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "RelationMessage{" +
+                "oid=" + oid +
+                ", namespace='" + namespace + '\'' +
+                ", relationName='" + relationName + '\'' +
+                ", replicaId=" + replicaId +
+                ", columns=" + columns +
+                ", lsn='" + lsn + '\'' +
+                ", xid=" + xid +
+                ", type=" + type +
+                '}';
+    }
 }

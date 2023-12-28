@@ -67,6 +67,26 @@ public class DeleteMessage extends Message {
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        DeleteMessage that = (DeleteMessage) o;
+
+        if (relationMessageOid != that.relationMessageOid) return false;
+        if (replicaIdentity != that.replicaIdentity) return false;
+        return columns.equals(that.columns);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = relationMessageOid;
+        result = 31 * result + (int) replicaIdentity;
+        result = 31 * result + columns.hashCode();
+        return result;
+    }
+
+    @Override
     public String toString() {
         return "DeleteMessage{" +
                 "relationMessageOid=" + relationMessageOid +

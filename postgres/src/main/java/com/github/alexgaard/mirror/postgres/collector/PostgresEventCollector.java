@@ -8,6 +8,7 @@ import com.github.alexgaard.mirror.postgres.event.*;
 import com.github.alexgaard.mirror.postgres.metadata.PgMetadata;
 import com.github.alexgaard.mirror.postgres.utils.PgTimestamp;
 import com.github.alexgaard.mirror.postgres.utils.TupleDataColumn;
+import org.postgresql.util.PGobject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -106,7 +107,7 @@ public class PostgresEventCollector implements EventSource {
 
         pollSchedule = executorService.scheduleWithFixedDelay(
                 safeRunnable(this::checkForDataChanges),
-                0,
+                dataChangePollInterval.toMillis(),
                 dataChangePollInterval.toMillis(),
                 TimeUnit.MILLISECONDS
         );
@@ -127,7 +128,7 @@ public class PostgresEventCollector implements EventSource {
 
     private void checkForDataChanges() throws InterruptedException {
         try (Connection connection = dataSource.getConnection()) {
-            int transactionIdx = 0;
+            String lastLsn = null;
 
             try {
                 List<RawMessage> rawMessages = peekDataChanges(connection);
@@ -150,30 +151,32 @@ public class PostgresEventCollector implements EventSource {
 
                 List<List<Message>> transactions = splitIntoTransactions(messages);
 
-                for (; transactionIdx < transactions.size(); transactionIdx++) {
-                    List<Message> transactionMessages = transactions.get(transactionIdx);
-
-                    if (shouldTransactionBeSkipped(transactionMessages)) {
+                for (List<Message> transaction : transactions) {
+                    if (shouldTransactionBeSkipped(transaction)) {
                         continue;
                     }
 
-                    List<DataChangeEvent> transactionEvents = toEventTransaction(transactionMessages, relationMessages);
+                    List<DataChangeEvent> transactionEvents = toEventTransaction(transaction, relationMessages);
 
-                    CommitMessage commit = (CommitMessage) transactionMessages.stream()
+                    CommitMessage commit = (CommitMessage) transaction.stream()
                             .filter(m -> m.type.equals(Message.Type.COMMIT))
                             .findAny()
                             .orElseThrow();
 
-                    var transaction = PostgresTransactionEvent.of(
+                    var pgTransaction = PostgresTransactionEvent.of(
                             sourceName,
                             transactionEvents,
                             PgTimestamp.toOffsetDateTime(commit.commitTimestamp)
                     );
 
-                    Result result = runWithResult(() -> eventSink.consume(transaction));
+                    Result result = runWithResult(() -> eventSink.consume(pgTransaction));
 
-                    if (result.isError()) {
-                        removeNextTransactions(connection, transactionIdx);
+                    if (result.isOk()) {
+                        lastLsn = commit.lsn;
+                    } else {
+                        if (lastLsn != null) {
+                            removeNextTransactions(connection, lastLsn);
+                        }
 
                         log.error("Caught exception while consuming transaction", result.getError().get());
 
@@ -183,11 +186,15 @@ public class PostgresEventCollector implements EventSource {
                     }
                 }
 
-                removeNextTransactions(connection, transactions.size());
+                if (lastLsn != null) {
+                    removeNextTransactions(connection, lastLsn);
+                }
                 currentBackoffMs = 0;
             } catch (Exception e) {
                 log.error("Caught exception while retrieving WAL messages", e);
-                removeNextTransactions(connection, transactionIdx);
+                if (lastLsn != null) {
+                    removeNextTransactions(connection, lastLsn);
+                }
 
                 // TODO: Maybe move backoff into safeRunnable()
                 currentBackoffMs = Math.min(currentBackoffMs + backoffIncreaseMs, maxBackoffMs);
@@ -330,16 +337,16 @@ public class PostgresEventCollector implements EventSource {
         return fields;
     }
 
-    private void removeNextTransactions(Connection connection, int transactionsToRemove) {
-        if (transactionsToRemove <= 0) {
-            return;
-        }
-
-        String sql = "SELECT 1 FROM pg_logical_slot_get_binary_changes(?, NULL, ?, 'messages', 'true', 'proto_version', '1', 'publication_names', ?)";
+    private void removeNextTransactions(Connection connection, String upToLsn) {
+        String sql = "SELECT 1 FROM pg_logical_slot_get_binary_changes(?, ?, NULL, 'messages', 'true', 'proto_version', '1', 'publication_names', ?)";
 
         query(connection, sql, statement -> {
+            var obj = new PGobject();
+            obj.setType("pg_lsn");
+            obj.setValue(upToLsn);
+
             statement.setString(1, replicationSlotName);
-            statement.setInt(2, transactionsToRemove);
+            statement.setObject(2, obj);
             statement.setString(3, publicationName);
             statement.executeQuery();
         });
@@ -360,10 +367,23 @@ public class PostgresEventCollector implements EventSource {
     }
 
     private static List<List<Message>> splitIntoTransactions(List<Message> messages) {
-        return new ArrayList<>(messages.stream()
-                .sorted(Comparator.comparingInt(m -> m.xid))
-                .collect(Collectors.groupingBy((m -> m.xid)))
-                .values());
+        List<List<Message>> transactions = new ArrayList<>();
+        List<Message> lastList = null;
+        int currentXid = -1;
+
+        for (Message m : messages) {
+            if (m.xid != currentXid) {
+                lastList = new ArrayList<>();
+                transactions.add(lastList);
+                currentXid = m.xid;
+            }
+
+            if (lastList != null) {
+                lastList.add(m);
+            }
+        }
+
+        return transactions;
     }
 
     private static RawMessage toRawEvent(ResultSet resultSet) throws SQLException {
@@ -377,7 +397,7 @@ public class PostgresEventCollector implements EventSource {
     private static boolean shouldTransactionBeSkipped(List<Message> transactionMessages) {
         return transactionMessages.stream().anyMatch(m -> {
             if (!(m instanceof LogicalDecodingMessage)) {
-               return false;
+                return false;
             }
 
             LogicalDecodingMessage logicalDecodingMessage = (LogicalDecodingMessage) m;

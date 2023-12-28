@@ -1,5 +1,6 @@
 package com.github.alexgaard.mirror.postgres.collector;
 
+import org.postgresql.util.PGobject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -11,6 +12,7 @@ import java.sql.SQLException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.softenException;
 import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.*;
 import static java.lang.String.format;
 
@@ -80,6 +82,7 @@ public class PgReplication {
                     .filter(t -> !exclusions.contains(t))
                     .collect(Collectors.toList());
 
+
             List<String> publicationTables = getTablesForPublication(dataSource, publicationName, schema);
 
             List<String> tablesToAddToPublication = includedTables
@@ -92,6 +95,8 @@ public class PgReplication {
                     .filter(t -> !includedTables.contains(t))
                     .collect(Collectors.toList());
 
+            List<String> tablesWithoutFullReplicaIdentity = getTablesWithoutFullReplicaIdentity(dataSource, schema, includedTables);
+
             tablesToAddToPublication.forEach(table -> {
                 log.info("Adding new table {}.{} to publication {}", schema, table, publicationName);
                 addTableToPublication(dataSource, publicationName, schema, table);
@@ -101,6 +106,11 @@ public class PgReplication {
                 log.info("Removing table {}.{} from publication {}", schema, table, publicationName);
                 removeTableFromPublication(dataSource, publicationName, schema, table);
             });
+
+//            tablesWithoutFullReplicaIdentity.forEach(table -> {
+//                log.info("Setting replica identity to FULL for {}.{}", schema, table);
+//                setReplicaIdentityFull(dataSource, schema, table);
+//            });
         });
     }
 
@@ -114,7 +124,7 @@ public class PgReplication {
                 return resultSet.next();
             }
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw softenException(e);
         }
     }
 
@@ -166,6 +176,24 @@ public class PgReplication {
 
             return resultList(resultSet, (rs) -> rs.getString(1));
         });
+    }
+
+    private static List<String> getTablesWithoutFullReplicaIdentity(DataSource dataSource, String schema, List<String> tables) {
+        String tablesSql = tables.stream().map(table -> format("'%s.%s'::regclass", schema, table))
+                .collect(Collectors.joining(", "));
+
+        String sql = format("select relname from pg_class where relreplident != 'f' and oid in (%s)", tablesSql);
+
+        return query(dataSource, sql, (statement) -> {
+            ResultSet resultSet = statement.executeQuery();
+            return resultList(resultSet, (rs) -> rs.getString(1));
+        });
+    }
+
+    private static void setReplicaIdentityFull(DataSource dataSource, String schema, String table) {
+        String sql = format("alter table %s.%s replica identity full", schema, table);
+
+        update(dataSource, sql);
     }
 
     private static void addTableToPublication(DataSource dataSource, String publicationName, String schema, String table) {

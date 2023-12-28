@@ -103,4 +103,38 @@ public class UpdateMessage extends Message {
                 : null;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        UpdateMessage that = (UpdateMessage) o;
+
+        if (relationMessageOid != that.relationMessageOid) return false;
+        if (!replicaIdentityType.equals(that.replicaIdentityType)) return false;
+        if (!oldTupleOrPkColumns.equals(that.oldTupleOrPkColumns)) return false;
+        return columnsAfterUpdate.equals(that.columnsAfterUpdate);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = relationMessageOid;
+        result = 31 * result + replicaIdentityType.hashCode();
+        result = 31 * result + oldTupleOrPkColumns.hashCode();
+        result = 31 * result + columnsAfterUpdate.hashCode();
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "UpdateMessage{" +
+                "relationMessageOid=" + relationMessageOid +
+                ", replicaIdentityType=" + replicaIdentityType +
+                ", oldTupleOrPkColumns=" + oldTupleOrPkColumns +
+                ", columnsAfterUpdate=" + columnsAfterUpdate +
+                ", lsn='" + lsn + '\'' +
+                ", xid=" + xid +
+                ", type=" + type +
+                '}';
+    }
 }

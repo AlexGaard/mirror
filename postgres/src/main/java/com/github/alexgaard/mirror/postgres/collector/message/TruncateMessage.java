@@ -67,4 +67,32 @@ public class TruncateMessage extends Message {
         return new TruncateMessage(msg.lsn, msg.xid, option, relationMessageOids);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        TruncateMessage that = (TruncateMessage) o;
+
+        if (option != that.option) return false;
+        return relationMessageOids.equals(that.relationMessageOids);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = option.hashCode();
+        result = 31 * result + relationMessageOids.hashCode();
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "TruncateMessage{" +
+                "option=" + option +
+                ", relationMessageOids=" + relationMessageOids +
+                ", lsn='" + lsn + '\'' +
+                ", xid=" + xid +
+                ", type=" + type +
+                '}';
+    }
 }

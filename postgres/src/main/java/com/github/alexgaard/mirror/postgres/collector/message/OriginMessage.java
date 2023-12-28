@@ -47,4 +47,33 @@ public class OriginMessage extends Message {
 
         return new OriginMessage(msg.lsn, msg.xid, originServerCommitLsn, name);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        OriginMessage that = (OriginMessage) o;
+
+        if (originServerCommitLsn != that.originServerCommitLsn) return false;
+        return name.equals(that.name);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = (int) (originServerCommitLsn ^ (originServerCommitLsn >>> 32));
+        result = 31 * result + name.hashCode();
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "OriginMessage{" +
+                "originServerCommitLsn=" + originServerCommitLsn +
+                ", name='" + name + '\'' +
+                ", lsn='" + lsn + '\'' +
+                ", xid=" + xid +
+                ", type=" + type +
+                '}';
+    }
 }

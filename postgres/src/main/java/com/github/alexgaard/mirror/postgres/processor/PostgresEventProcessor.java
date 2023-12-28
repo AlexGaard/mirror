@@ -60,22 +60,22 @@ public class PostgresEventProcessor implements EventSink {
                 filteredEvents.forEach(e -> handleDataChangeEvent(e, connection));
 
                 insertSkipTransactionMessage(connection);
+
+                connection.commit();
+
+                lastSourceTransactionId.put(transaction.sourceName, findLastTransactionId(filteredEvents));
+
+                return Result.ok();
             } catch (Exception e) {
                 log.error("Caught exception while processing events", e);
                 connection.rollback();
-                connection.setAutoCommit(originalAutoCommit.get());
                 return Result.error(e);
+            } finally {
+                connection.setAutoCommit(originalAutoCommit.get());
             }
-
-            connection.commit();
-            lastSourceTransactionId.put(transaction.sourceName, findLastTransactionId(filteredEvents));
-
-            connection.setAutoCommit(originalAutoCommit.get());
         } catch (Exception e) {
             return Result.error(e);
         }
-
-        return Result.ok();
     }
 
     private void handleDataChangeEvent(DataChangeEvent event, Connection connection) {
@@ -91,15 +91,15 @@ public class PostgresEventProcessor implements EventSink {
     private void handleInsertDataChange(InsertEvent insert, Connection connection) {
         // TODO: Add option for on conflict do nothing
 
-        String fields = createSqlFieldsParameters(insert.fields);
+        String fields = createSqlFieldParameters(insert.fields);
 
-        String templateParams = createSqlValueTemplateParameters(insert.fields);
+        String templateParams = createSqlValuesTemplate(insert.fields);
 
         String sql = format("INSERT INTO %s.%s (%s) VALUES (%s)", insert.namespace, insert.table, fields, templateParams);
 
         QueryUtils.update(connection, sql, statement -> {
             for (int i = 0; i < insert.fields.size(); i++) {
-                Field field = insert.fields.get(i);
+                Field<?> field = insert.fields.get(i);
 
                 setParameter(statement, i + 1, field);
             }
@@ -109,11 +109,9 @@ public class PostgresEventProcessor implements EventSink {
     }
 
     private void handleUpdateEvent(UpdateEvent update, Connection connection) {
-        String setSql = update.fields.stream().map(f -> f.name + " = ?")
-                .collect(Collectors.joining(", "));
+        String setSql = createSqlSetAllFields(update.fields);
 
-        String whereSql = update.identifierFields.stream().map(f -> f.name + " = ?")
-                .collect(Collectors.joining(" and "));
+        String whereSql = createSqlWhereAllFieldsEqualTemplate(update.identifierFields);
 
         String sql = format("UPDATE %s.%s SET %s WHERE %s", update.namespace, update.table, setSql, whereSql);
 
@@ -133,14 +131,13 @@ public class PostgresEventProcessor implements EventSink {
     }
 
     private void handleDeleteEvent(DeleteEvent delete, Connection connection) {
-        String whereSql = delete.identifierFields.stream().map(f -> f.name + " = ?")
-                .collect(Collectors.joining(" and "));
+        String whereSql = createSqlWhereAllFieldsEqualTemplate(delete.identifierFields);
 
         String sql = format("DELETE FROM %s.%s WHERE %s", delete.namespace, delete.table, whereSql);
 
         QueryUtils.update(connection, sql, statement -> {
             for (int i = 0; i < delete.identifierFields.size(); i++) {
-                Field field = delete.identifierFields.get(i);
+                Field<?> field = delete.identifierFields.get(i);
 
                 setParameter(statement, i + 1, field);
             }
@@ -149,14 +146,25 @@ public class PostgresEventProcessor implements EventSink {
         });
     }
 
-    private static String createSqlFieldsParameters(List<Field<?>> fields) {
+    private static String createSqlFieldParameters(List<Field<?>> fields) {
         return fields.stream().map(f -> f.name).collect(Collectors.joining(","));
     }
 
-    private static String createSqlValueTemplateParameters(List<Field<?>> fields) {
+    private static String createSqlValuesTemplate(List<Field<?>> fields) {
         return fields.stream()
                 .map(f -> "?" + postgresTypeCast(f.type))
-                .collect(Collectors.joining(","));
+                .collect(Collectors.joining(", "));
+    }
+
+    private static String createSqlWhereAllFieldsEqualTemplate(List<Field<?>> fields) {
+        return fields.stream()
+                .map(f -> f.name + " = ?" + postgresTypeCast(f.type))
+                .collect(Collectors.joining(" and "));
+    }
+
+    private static String createSqlSetAllFields(List<Field<?>> fields) {
+        return fields.stream().map(f -> f.name + " = ?" + postgresTypeCast(f.type))
+                .collect(Collectors.joining(", "));
     }
 
     private static String postgresTypeCast(Field.Type type) {

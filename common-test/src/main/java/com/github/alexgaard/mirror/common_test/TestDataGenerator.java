@@ -11,6 +11,8 @@ public class TestDataGenerator {
     private final static AtomicInteger rabbitMqExchangeNr = new AtomicInteger();
     private final static AtomicInteger rabbitMqQueueNr = new AtomicInteger();
 
+    private final static AtomicInteger rabbitMqKeyNr = new AtomicInteger();
+
 
     public static int newId() {
         return id.getAndIncrement();
@@ -21,11 +23,16 @@ public class TestDataGenerator {
     }
 
     public static String newRabbitMqExchange() {
-        return "mirror_exchange_" + rabbitMqExchangeNr.getAndIncrement();
+        return "exchange_" + rabbitMqExchangeNr.getAndIncrement();
     }
 
     public static String newRabbitMqQueue() {
-        return "mirror_queue_" + rabbitMqQueueNr.getAndIncrement();
+        return "queue_" + rabbitMqQueueNr.getAndIncrement();
     }
+
+    public static String newRabbitMqKey() {
+        return "key_" + rabbitMqKeyNr.getAndIncrement();
+    }
+
 
 }

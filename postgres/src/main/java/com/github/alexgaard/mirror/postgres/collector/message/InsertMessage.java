@@ -59,4 +59,32 @@ public class InsertMessage extends Message {
         return new InsertMessage(msg.lsn, msg.xid, oid, columns);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        InsertMessage that = (InsertMessage) o;
+
+        if (relationMessageOid != that.relationMessageOid) return false;
+        return columns.equals(that.columns);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = relationMessageOid;
+        result = 31 * result + columns.hashCode();
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "InsertMessage{" +
+                "relationMessageOid=" + relationMessageOid +
+                ", columns=" + columns +
+                ", lsn='" + lsn + '\'' +
+                ", xid=" + xid +
+                ", type=" + type +
+                '}';
+    }
 }
