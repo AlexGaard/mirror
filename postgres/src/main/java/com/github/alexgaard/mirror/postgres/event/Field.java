@@ -15,6 +15,8 @@ public class Field<T> {
         BOOLEAN,
         TEXT,
         JSON,
+        JSONB,
+
         UUID,
         CHAR,
         INT16,
@@ -25,7 +27,6 @@ public class Field<T> {
         TIME,
         TIMESTAMP,
         TIMESTAMP_TZ,
-        NULL,
     }
 
     public final java.lang.String name;
@@ -70,6 +71,11 @@ public class Field<T> {
     public static class Json extends Field<java.lang.String> {
         public Json(String name, java.lang.String value) {
             super(name, Type.JSON, value);
+        }
+    }
+    public static class Jsonb extends Field<java.lang.String> {
+        public Jsonb(String name, java.lang.String value) {
+            super(name, Type.JSONB, value);
         }
     }
     public static class Uuid extends Field<UUID> {
@@ -120,12 +126,6 @@ public class Field<T> {
     public static class TimestampTz extends Field<OffsetDateTime> {
         public TimestampTz(String name, OffsetDateTime value) {
             super(name, Type.TIMESTAMP_TZ, value);
-        }
-    }
-
-    public static class Null extends Field<Object> {
-        public Null(String name) {
-            super(name, Type.NULL, null);
         }
     }
 

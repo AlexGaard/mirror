@@ -123,8 +123,9 @@ public class PgMetadata {
                 case "boolean":
                     return Field.Type.BOOLEAN;
                 case "json":
-                case "jsonb":
                     return Field.Type.JSON;
+                case "jsonb":
+                    return Field.Type.JSONB;
                 case "varchar":
                 case "text":
                     return Field.Type.TEXT;

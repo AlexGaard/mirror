@@ -38,6 +38,10 @@ public class FieldDeserializer extends StdDeserializer<Field<?>> {
     }
 
     private static Field<?> toField(String name, Field.Type type, JsonNode valueNode) throws IOException {
+        if (valueNode.isNull()) {
+            return new Field<>(name, type, null);
+        }
+
         switch (type) {
             case FLOAT:
                 return new Field.Float(name, valueNode.floatValue());
@@ -49,6 +53,8 @@ public class FieldDeserializer extends StdDeserializer<Field<?>> {
                 return new Field.Text(name, valueNode.textValue());
             case JSON:
                 return new Field.Json(name, valueNode.textValue());
+            case JSONB:
+                return new Field.Jsonb(name, valueNode.textValue());
             case UUID:
                 return new Field.Uuid(name, UUID.fromString(valueNode.textValue()));
             case CHAR:
@@ -69,8 +75,6 @@ public class FieldDeserializer extends StdDeserializer<Field<?>> {
                 return new Field.Timestamp(name, LocalDateTime.parse(valueNode.textValue()));
             case TIMESTAMP_TZ:
                 return new Field.TimestampTz(name, OffsetDateTime.parse(valueNode.textValue()));
-            case NULL:
-                return new Field.Null(name);
             default:
                 throw new IllegalArgumentException("Missing deserialization implementation for field of type: " + type);
         }

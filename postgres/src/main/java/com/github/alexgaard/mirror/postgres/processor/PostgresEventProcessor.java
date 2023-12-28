@@ -15,6 +15,7 @@ import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -98,10 +99,10 @@ public class PostgresEventProcessor implements EventSink {
         String sql = format("INSERT INTO %s.%s (%s) VALUES (%s)", insert.namespace, insert.table, fields, templateParams);
 
         QueryUtils.update(connection, sql, statement -> {
-            for (int i = 0; i < insert.fields.size(); i++) {
-                Field<?> field = insert.fields.get(i);
+            int paramCounter = 1;
 
-                setParameter(statement, i + 1, field);
+            for (Field<?> field : insert.fields) {
+                setParameter(statement, paramCounter++, field);
             }
 
             statement.executeUpdate();
@@ -123,7 +124,10 @@ public class PostgresEventProcessor implements EventSink {
             }
 
             for (Field<?> field : update.identifierFields) {
-                setParameter(statement, paramCounter++, field);
+                // Fields that have null use "is null" and does not have a template parameter
+                if (field.value != null) {
+                    setParameter(statement, paramCounter++, field);
+                }
             }
 
             statement.executeUpdate();
@@ -136,10 +140,13 @@ public class PostgresEventProcessor implements EventSink {
         String sql = format("DELETE FROM %s.%s WHERE %s", delete.namespace, delete.table, whereSql);
 
         QueryUtils.update(connection, sql, statement -> {
-            for (int i = 0; i < delete.identifierFields.size(); i++) {
-                Field<?> field = delete.identifierFields.get(i);
+            int paramCounter = 1;
 
-                setParameter(statement, i + 1, field);
+            for (Field<?> field : delete.identifierFields) {
+                // Fields that have null use "is null" and does not have a template parameter
+                if (field.value != null) {
+                    setParameter(statement, paramCounter++, field);
+                }
             }
 
             statement.executeUpdate();
@@ -152,25 +159,44 @@ public class PostgresEventProcessor implements EventSink {
 
     private static String createSqlValuesTemplate(List<Field<?>> fields) {
         return fields.stream()
-                .map(f -> "?" + postgresTypeCast(f.type))
+                .map(f -> "?" + postgresTypeCast(f))
                 .collect(Collectors.joining(", "));
     }
 
     private static String createSqlWhereAllFieldsEqualTemplate(List<Field<?>> fields) {
         return fields.stream()
-                .map(f -> f.name + " = ?" + postgresTypeCast(f.type))
+                .map(f -> {
+                    if (f.value == null) {
+                        return f.name + " is null";
+                    }
+
+                    String fieldCast;
+                    String valueCast;
+
+                    if (Field.Type.JSON.equals(f.type) || Field.Type.JSONB.equals(f.type)) {
+                        fieldCast = "::jsonb";
+                        valueCast = "::jsonb";
+                    } else {
+                        fieldCast = "";
+                        valueCast = postgresTypeCast(f);
+                    }
+
+                    return f.name + fieldCast + " = ?" + valueCast;
+                })
                 .collect(Collectors.joining(" and "));
     }
 
     private static String createSqlSetAllFields(List<Field<?>> fields) {
-        return fields.stream().map(f -> f.name + " = ?" + postgresTypeCast(f.type))
+        return fields.stream().map(f -> f.name + " = ?" + postgresTypeCast(f))
                 .collect(Collectors.joining(", "));
     }
 
-    private static String postgresTypeCast(Field.Type type) {
-        switch (type) {
+    private static String postgresTypeCast(Field<?> field) {
+        switch (field.type) {
             case JSON:
                 return "::json";
+            case JSONB:
+                return "::jsonb";
             case UUID:
                 return "::uuid";
             default:
@@ -179,13 +205,11 @@ public class PostgresEventProcessor implements EventSink {
     }
 
     private static void setParameter(PreparedStatement statement, int parameterIdx, Field<?> field) throws SQLException {
-        switch (field.type) {
-            case BYTES:
-                statement.setBytes(parameterIdx, (byte[]) field.value);
-                break;
-            default:
-                int sqlType = sqlFieldType(field.type);
-                statement.setObject(parameterIdx, field.value, sqlType);
+        if (Field.Type.BYTES.equals(field.type)) {
+            statement.setBytes(parameterIdx, (byte[]) field.value);
+        } else {
+            int sqlType = sqlFieldType(field);
+            statement.setObject(parameterIdx, field.value, sqlType);
         }
     }
 

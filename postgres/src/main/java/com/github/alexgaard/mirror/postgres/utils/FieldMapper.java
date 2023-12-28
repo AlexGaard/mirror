@@ -24,8 +24,7 @@ public class FieldMapper {
         }
 
         switch (fieldType) {
-            case NULL:
-                return null;
+            case JSONB:
             case JSON:
             case TEXT:
                 if (!(fieldData instanceof String)) {

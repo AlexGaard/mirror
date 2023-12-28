@@ -5,10 +5,16 @@ import com.github.alexgaard.mirror.core.exception.NotYetImplementedException;
 
 import java.sql.Types;
 
+import static java.lang.String.format;
+
 public class SqlFieldType {
 
-    public static int sqlFieldType(Field.Type type) {
-        switch (type) {
+    public static int sqlFieldType(Field<?> field) {
+        if (field.value == null) {
+            return Types.NULL;
+        }
+
+        switch (field.type) {
             case FLOAT:
                 return Types.FLOAT;
             case DOUBLE:
@@ -19,14 +25,13 @@ public class SqlFieldType {
                 return Types.INTEGER;
             case INT64:
                 return Types.BIGINT;
-            case NULL:
-                return Types.NULL;
             case CHAR:
                 return Types.CHAR;
             case BOOLEAN:
                 return Types.BOOLEAN;
             case TEXT:
             case JSON:
+            case JSONB:
             case UUID:
                 return Types.VARCHAR;
             case BYTES:
@@ -40,7 +45,7 @@ public class SqlFieldType {
             case TIMESTAMP_TZ:
                 return Types.TIMESTAMP_WITH_TIMEZONE;
             default:
-                throw new NotYetImplementedException("No mapping to SQL type for field type " + type);
+                throw new NotYetImplementedException(format("No mapping to SQL type for field '%s' with type '%s'", field.name, field.type));
         }
     }
 

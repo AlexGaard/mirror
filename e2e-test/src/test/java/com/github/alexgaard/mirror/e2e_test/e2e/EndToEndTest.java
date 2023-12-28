@@ -186,17 +186,32 @@ public class EndToEndTest {
     }
 
     @Test
+    public void should_send_receive_update_event() {
+        DataTypesDbo dbo1 = new DataTypesDbo();
+        dbo1.id = newId();
+
+        repo1.insertDataTypes(dbo1);
+
+        eventually(() -> assertTrue(repo2.getDataTypes(dbo1.id).isPresent()));
+
+        dbo1.int4_field = 42;
+        repo1.updateDataTypes(dbo1);
+
+        eventually(() -> assertEquals(dbo1.int4_field, repo2.getDataTypes(dbo1.id).get().int4_field));
+    }
+
+    @Test
     public void should_send_receive_delete_event() {
         DataTypesDbo dbo1 = new DataTypesDbo();
         dbo1.id = newId();
 
         repo1.insertDataTypes(dbo1);
 
-        eventually(() -> assertNotNull(repo2.getDataTypes(dbo1.id)));
+        eventually(() -> assertTrue(repo2.getDataTypes(dbo1.id).isPresent()));
 
         repo1.deleteDataTypeRow(dbo1.id);
 
-        eventually(() -> assertNull(repo2.getDataTypes(dbo1.id)));
+        eventually(() -> assertTrue(repo2.getDataTypes(dbo1.id).isEmpty()));
     }
 
     @Test

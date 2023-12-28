@@ -52,7 +52,7 @@ public class PostgresEventProcessorTest {
         fields.add(new Field.Bytes("bytes_field", new byte[]{5, 87, 3}));
         fields.add(new Field.Char("char_field", 's'));
         fields.add(new Field.Json("json_field", "{\"json\": true}"));
-        fields.add(new Field.Json("jsonb_field", "{\"json\": true}"));
+        fields.add(new Field.Jsonb("jsonb_field", "{\"json\": true}"));
         fields.add(new Field.Date("date_field", LocalDate.now()));
         fields.add(new Field.Time("time_field", LocalTime.now()));
         fields.add(new Field.Timestamp("timestamp_field", LocalDateTime.now()));
