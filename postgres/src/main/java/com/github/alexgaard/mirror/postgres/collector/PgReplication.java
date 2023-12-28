@@ -65,6 +65,10 @@ public class PgReplication {
         return publicationName;
     }
 
+    public Set<String> getSchemas() {
+        return schemaAndTableExclusions.keySet();
+    }
+
     public synchronized void setup(DataSource dataSource) {
         if (!hasReplicationSlot(dataSource, replicationSlotName)) {
             log.info("Creating new replication slot {}", replicationSlotName);
@@ -107,10 +111,10 @@ public class PgReplication {
                 removeTableFromPublication(dataSource, publicationName, schema, table);
             });
 
-//            tablesWithoutFullReplicaIdentity.forEach(table -> {
-//                log.info("Setting replica identity to FULL for {}.{}", schema, table);
-//                setReplicaIdentityFull(dataSource, schema, table);
-//            });
+            tablesWithoutFullReplicaIdentity.forEach(table -> {
+                log.info("Setting replica identity to FULL for {}.{}", schema, table);
+                setReplicaIdentityFull(dataSource, schema, table);
+            });
         });
     }
 

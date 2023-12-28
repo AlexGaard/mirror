@@ -5,6 +5,9 @@ import com.github.alexgaard.mirror.core.EventSource;
 import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.postgres.collector.message.*;
 import com.github.alexgaard.mirror.postgres.event.*;
+import com.github.alexgaard.mirror.postgres.metadata.ColumnMetadata;
+import com.github.alexgaard.mirror.postgres.metadata.ConstraintMetadata;
+import com.github.alexgaard.mirror.postgres.metadata.PgDataType;
 import com.github.alexgaard.mirror.postgres.metadata.PgMetadata;
 import com.github.alexgaard.mirror.postgres.utils.PgTimestamp;
 import com.github.alexgaard.mirror.postgres.utils.TupleDataColumn;
@@ -27,6 +30,7 @@ import java.util.stream.Collectors;
 
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.runWithResult;
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.safeRunnable;
+import static com.github.alexgaard.mirror.postgres.metadata.PgMetadata.tableFullName;
 import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.MESSAGE_PREFIX;
 import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.SKIP_TRANSACTION_MSG;
 import static com.github.alexgaard.mirror.postgres.utils.FieldMapper.mapTupleDataToField;
@@ -51,7 +55,11 @@ public class PostgresEventCollector implements EventSource {
 
     private final String sourceName;
 
-    private final Map<Integer, PgMetadata.PgDataType> pgDataTypes = new HashMap<>();
+    private final Map<Integer, PgDataType> pgDataTypes = new HashMap<>();
+
+    private final Map<String, List<ColumnMetadata>> tableColumnMetadata = new HashMap<>();
+
+    private final Map<String, List<ConstraintMetadata>> tableConstraintMetadata = new HashMap<>();
 
     private final DataSource dataSource;
 
@@ -101,9 +109,20 @@ public class PostgresEventCollector implements EventSource {
 
         isStarted = true;
 
+        log.debug("Collecting metadata");
+
         pgDataTypes.putAll(PgMetadata.getAllPgDataTypes(dataSource));
 
+        pgReplication.getSchemas().forEach(schema -> {
+            tableColumnMetadata.putAll(PgMetadata.getAllTableColumns(dataSource, schema));
+            tableConstraintMetadata.putAll(PgMetadata.getAllTableConstraints(dataSource, schema));
+        });
+
+        log.debug("Initializing postgres replication");
+
         pgReplication.setup(dataSource);
+
+        log.debug("Starting event collector");
 
         pollSchedule = executorService.scheduleWithFixedDelay(
                 safeRunnable(this::checkForDataChanges),
@@ -280,8 +299,48 @@ public class PostgresEventCollector implements EventSource {
                                 .filter(f -> !identifyingFields.contains(f)) // Remove fields that have not changed
                                 .collect(Collectors.toList());
                     } else if (update.replicaIdentityType != null && update.replicaIdentityType == 'O') {
+                        // TODO: Check if pk or unique idx is available. Use if possible, if not default to normal FULL
+
+                        String fullName = tableFullName(relation.namespace, relation.relationName);
+
+                        var constraints = tableConstraintMetadata.get(fullName);
+                        var columns = tableColumnMetadata.get(fullName);
+
+                        var maybePkConstraint = constraints
+                                .stream()
+                                .filter(c -> c.type.equals(ConstraintMetadata.ConstraintType.PRIMARY_KEY))
+                                .findAny();
+
+                        var uniqueConstraints = constraints
+                                .stream()
+                                .filter(c -> c.type.equals(ConstraintMetadata.ConstraintType.UNIQUE))
+                                .collect(Collectors.toList());
+
+                        if (maybePkConstraint.isPresent()) {
+                            ConstraintMetadata pkConstraint = maybePkConstraint.get();
+                            identifyingFields = toFieldsV2(
+                                    update.oldTupleOrPkColumns,
+                                    relation,
+                                    Optional.of(pkConstraint.constraintKeyOrdinalPositions)
+                            );
+                        } else if (uniqueConstraints.size() == 1) {
+                            ConstraintMetadata uniqueConstraint = uniqueConstraints.get(0);
+
+                            identifyingFields = toFieldsV2(
+                                    update.oldTupleOrPkColumns,
+                                    relation,
+                                    Optional.of(uniqueConstraint.constraintKeyOrdinalPositions)
+                            );
+                        } else if (uniqueConstraints.size() > 1) {
+                            throw new IllegalStateException("Unable to choose which constraint to use");
+                        } else {
+                            identifyingFields = toFields(update.oldTupleOrPkColumns, relation);
+                        }
+
+                        // TODO: Find diff between new and old for updatedFields
+
                         // REPLICA IDENTITY = FULL, all the old fields must be used together as a key
-                        identifyingFields = toFields(update.oldTupleOrPkColumns, relation);
+//                        identifyingFields = toFields(update.oldTupleOrPkColumns, relation);
                         updatedFields = toFields(update.columnsAfterUpdate, relation);
                     } else {
                         identifyingFields = toFields(update.columnsAfterUpdate, relation)
@@ -324,6 +383,28 @@ public class PostgresEventCollector implements EventSource {
         List<Field<?>> fields = new ArrayList<>(columns.size());
 
         for (int i = 0; i < columns.size(); i++) {
+            TupleDataColumn insertCol = columns.get(i);
+            RelationMessage.Column relationCol = relation.columns.get(i);
+            Field.Type type = pgDataTypes.get(relationCol.dataOid).getType();
+
+            fields.add(mapTupleDataToField(relationCol.name, type, insertCol));
+        }
+
+        return fields;
+    }
+
+    private List<Field<?>> toFieldsV2(List<TupleDataColumn> columns, RelationMessage relation, Optional<List<Integer>> filterColumnOrdinals) {
+        if (columns.size() > relation.columns.size()) {
+            throw new IllegalArgumentException(format("Tuple data columns length (%d) must be equal or less than relation columns (%d)", columns.size(), relation.columns.size()));
+        }
+
+        List<Field<?>> fields = new ArrayList<>(columns.size());
+
+        for (int i = 0; i < columns.size(); i++) {
+            if (filterColumnOrdinals.isPresent() && !filterColumnOrdinals.get().contains(i + 1)) {
+                continue;
+            }
+
             TupleDataColumn insertCol = columns.get(i);
             RelationMessage.Column relationCol = relation.columns.get(i);
             Field.Type type = pgDataTypes.get(relationCol.dataOid).getType();
