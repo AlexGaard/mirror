@@ -1,6 +1,7 @@
 package com.github.alexgaard.mirror.common_test;
 
 import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import org.testcontainers.containers.RabbitMQContainer;
 
@@ -45,7 +46,7 @@ public class RabbitMQContainerWrapper {
     private void withChannel(UnsafeConsumer<Channel> channelConsumer) {
         ConnectionFactory factory = createConnectionFactory();
 
-        try (var connection = factory.newConnection(); var channel = connection.createChannel()) {
+        try (Connection connection = factory.newConnection(); Channel channel = connection.createChannel()) {
             channelConsumer.accept(channel);
         } catch (Exception e) {
            throw softenException(e);

@@ -16,7 +16,7 @@ public class UpdateMessage extends Message {
 
     public final Character replicaIdentityType;
 
-    public final List<TupleDataColumn> oldTupleOrPkColumns;
+    public final List<TupleDataColumn> oldTupleOrKeyColumns;
 
     public final List<TupleDataColumn> columnsAfterUpdate;
 
@@ -25,13 +25,13 @@ public class UpdateMessage extends Message {
             int xid,
             int relationMessageOid,
             Character replicaIdentityType,
-            List<TupleDataColumn> oldTupleOrPkColumns,
+            List<TupleDataColumn> oldTupleOrKeyColumns,
             List<TupleDataColumn> columnsAfterUpdate
     ) {
         super(lsn, xid, Type.UPDATE);
         this.relationMessageOid = relationMessageOid;
         this.replicaIdentityType = replicaIdentityType;
-        this.oldTupleOrPkColumns = oldTupleOrPkColumns;
+        this.oldTupleOrKeyColumns = oldTupleOrKeyColumns;
         this.columnsAfterUpdate = columnsAfterUpdate;
     }
 
@@ -112,7 +112,7 @@ public class UpdateMessage extends Message {
 
         if (relationMessageOid != that.relationMessageOid) return false;
         if (!replicaIdentityType.equals(that.replicaIdentityType)) return false;
-        if (!oldTupleOrPkColumns.equals(that.oldTupleOrPkColumns)) return false;
+        if (!oldTupleOrKeyColumns.equals(that.oldTupleOrKeyColumns)) return false;
         return columnsAfterUpdate.equals(that.columnsAfterUpdate);
     }
 
@@ -120,7 +120,7 @@ public class UpdateMessage extends Message {
     public int hashCode() {
         int result = relationMessageOid;
         result = 31 * result + replicaIdentityType.hashCode();
-        result = 31 * result + oldTupleOrPkColumns.hashCode();
+        result = 31 * result + oldTupleOrKeyColumns.hashCode();
         result = 31 * result + columnsAfterUpdate.hashCode();
         return result;
     }
@@ -130,7 +130,7 @@ public class UpdateMessage extends Message {
         return "UpdateMessage{" +
                 "relationMessageOid=" + relationMessageOid +
                 ", replicaIdentityType=" + replicaIdentityType +
-                ", oldTupleOrPkColumns=" + oldTupleOrPkColumns +
+                ", oldTupleOrKeyColumns=" + oldTupleOrKeyColumns +
                 ", columnsAfterUpdate=" + columnsAfterUpdate +
                 ", lsn='" + lsn + '\'' +
                 ", xid=" + xid +

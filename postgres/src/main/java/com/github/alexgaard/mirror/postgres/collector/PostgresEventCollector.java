@@ -22,11 +22,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.*;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.*;
@@ -36,10 +31,11 @@ import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.SKIP_TRAN
 import static com.github.alexgaard.mirror.postgres.utils.FieldMapper.mapTupleDataToField;
 import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.*;
 import static java.lang.String.format;
+import static java.util.Optional.*;
 
 public class PostgresEventCollector implements EventSource {
 
-    private final Logger log = LoggerFactory.getLogger(PostgresEventCollector.class);
+    private final static Logger log = LoggerFactory.getLogger(PostgresEventCollector.class);
 
     private final String replicationSlotName;
 
@@ -55,6 +51,8 @@ public class PostgresEventCollector implements EventSource {
 
     private final Map<String, List<ConstraintMetadata>> tableConstraintMetadata = new HashMap<>();
 
+    private final Map<String, TableReplicationConfig> tableReplicationConfig = new HashMap<>();
+
     private final DataSource dataSource;
 
     private final PgReplication pgReplication;
@@ -63,7 +61,12 @@ public class PostgresEventCollector implements EventSource {
 
     private EventSink eventSink;
 
-    public PostgresEventCollector(String sourceName, DataSource dataSource, Duration pollInterval, PgReplication pgReplication) {
+    public PostgresEventCollector(
+            String sourceName,
+            DataSource dataSource,
+            Duration pollInterval,
+            PgReplication pgReplication
+    ) {
         this.sourceName = sourceName;
         this.dataSource = dataSource;
         this.pgReplication = pgReplication;
@@ -77,8 +80,8 @@ public class PostgresEventCollector implements EventSource {
         );
     }
 
-    public PostgresEventCollector(String sourceName, DataSource dataSource, PgReplication pgReplication) {
-        this(sourceName, dataSource, Duration.ofSeconds(1), pgReplication);
+    public void setTableReplicationConfig(String schema, String table, TableReplicationConfig config) {
+        tableReplicationConfig.put(tableFullName(schema, table), config);
     }
 
     @Override
@@ -115,7 +118,7 @@ public class PostgresEventCollector implements EventSource {
 
         log.debug("Starting event collector");
 
-        backgroundJob.start(this::checkForDataChanges);
+        backgroundJob.start(this::collectEventsFromWal);
     }
 
     @Override
@@ -123,7 +126,7 @@ public class PostgresEventCollector implements EventSource {
         backgroundJob.stop();
     }
 
-    private void checkForDataChanges() throws SQLException {
+    private void collectEventsFromWal() throws SQLException {
         try (Connection connection = dataSource.getConnection()) {
             String lastLsn = null;
 
@@ -218,14 +221,14 @@ public class PostgresEventCollector implements EventSource {
                             .findAny()
                             .orElseThrow();
 
-                    List<Field<?>> fields = toFields(delete.columns, relation);
+                    List<Field<?>> identifyingFields = findIdentifyingFields(delete.replicaIdentityType, delete.columns, relation);
 
                     DeleteEvent deleteEvent = new DeleteEvent(
                             UUID.randomUUID(),
                             relation.namespace,
                             relation.relationName,
                             delete.xid,
-                            fields
+                            identifyingFields
                     );
 
                     event.add(deleteEvent);
@@ -240,77 +243,8 @@ public class PostgresEventCollector implements EventSource {
                             .findAny()
                             .orElseThrow();
 
-                    List<Field<?>> identifyingFields;
-                    List<Field<?>> updatedFields;
-
-                    if (update.replicaIdentityType != null && update.replicaIdentityType == 'K') {
-                        // Identifying field was changed
-                        identifyingFields = toFields(update.oldTupleOrPkColumns, relation)
-                                .stream()
-                                .filter(f -> relation.columns.stream().anyMatch(c -> c.name.equals(f.name) && c.partOfKey))
-                                .collect(Collectors.toList());
-
-                        updatedFields = toFields(update.columnsAfterUpdate, relation)
-                                .stream()
-                                .filter(f -> !identifyingFields.contains(f)) // Remove fields that have not changed
-                                .collect(Collectors.toList());
-                    } else if (update.replicaIdentityType != null && update.replicaIdentityType == 'O') {
-                        // TODO: Check if pk or unique idx is available. Use if possible, if not default to normal FULL
-
-//                        String fullName = tableFullName(relation.namespace, relation.relationName);
-
-//                        List<ConstraintMetadata> constraints = tableConstraintMetadata.get(fullName);
-//                        List<ColumnMetadata> columns = tableColumnMetadata.get(fullName);
-//
-//                        Optional<ConstraintMetadata> maybePkConstraint = constraints
-//                                .stream()
-//                                .filter(c -> c.type.equals(ConstraintMetadata.ConstraintType.PRIMARY_KEY))
-//                                .findAny();
-//
-//                        List<ConstraintMetadata> uniqueConstraints = constraints
-//                                .stream()
-//                                .filter(c -> c.type.equals(ConstraintMetadata.ConstraintType.UNIQUE))
-//                                .collect(Collectors.toList());
-//
-//                        if (maybePkConstraint.isPresent()) {
-//                            ConstraintMetadata pkConstraint = maybePkConstraint.get();
-//                            identifyingFields = toFieldsV2(
-//                                    update.oldTupleOrPkColumns,
-//                                    relation,
-//                                    Optional.of(pkConstraint.constraintKeyOrdinalPositions)
-//                            );
-//                        } else if (uniqueConstraints.size() == 1) {
-//                            ConstraintMetadata uniqueConstraint = uniqueConstraints.get(0);
-//
-//                            identifyingFields = toFieldsV2(
-//                                    update.oldTupleOrPkColumns,
-//                                    relation,
-//                                    Optional.of(uniqueConstraint.constraintKeyOrdinalPositions)
-//                            );
-//                        } else if (uniqueConstraints.size() > 1) {
-//                            throw new IllegalStateException("Unable to choose which constraint to use");
-//                        } else {
-//                            identifyingFields = toFields(update.oldTupleOrPkColumns, relation);
-//                        }
-
-                        // TODO: Find diff between new and old for updatedFields
-
-                        // REPLICA IDENTITY = FULL, all the old fields must be used together as a key
-                        identifyingFields = toFields(update.oldTupleOrPkColumns, relation);
-                        updatedFields = toFields(update.columnsAfterUpdate, relation);
-                    } else {
-                        identifyingFields = toFields(update.columnsAfterUpdate, relation)
-                                .stream()
-                                .filter(f -> relation.columns.stream().anyMatch(c -> c.name.equals(f.name) && c.partOfKey))
-                                .collect(Collectors.toList());
-
-                        updatedFields = toFields(update.columnsAfterUpdate, relation)
-                                .stream()
-                                .filter(f -> relation.columns.stream().filter(c -> c.name.equals(f.name))
-                                        .findAny().map(c -> !c.partOfKey).orElse(true)
-                                )
-                                .collect(Collectors.toList());
-                    }
+                    List<Field<?>> identifyingFields = findIdentifyingFields(update.replicaIdentityType, update.oldTupleOrKeyColumns, relation);
+                    List<Field<?>> updatedFields = findUpdatedFields(update.replicaIdentityType, update, relation, identifyingFields);
 
                     UpdateEvent updateEvent = new UpdateEvent(
                             UUID.randomUUID(),
@@ -331,6 +265,103 @@ public class PostgresEventCollector implements EventSource {
         return event;
     }
 
+    private List<Field<?>> findIdentifyingFields(Character replicaIdentityType, List<TupleDataColumn> oldColumns, RelationMessage relation) {
+        if (replicaIdentityType != null && replicaIdentityType == 'O') {
+            // Replica identity FULL
+
+            String fullName = tableFullName(relation.namespace, relation.relationName);
+
+            List<ConstraintMetadata> constraints = ofNullable(tableConstraintMetadata.get(fullName)).orElseGet(Collections::emptyList);
+            List<ColumnMetadata> columns = tableColumnMetadata.get(fullName);
+            Optional<TableReplicationConfig> replicationConfig = ofNullable(tableReplicationConfig.get(fullName));
+
+            Optional<ConstraintMetadata> identifyingConstraint = getPreferredConstraint(replicationConfig, constraints)
+                    .or(() -> findIdentifyingConstraint(constraints, columns));
+
+            return identifyingConstraint
+                    .map(constraintMetadata -> toFieldsV2(oldColumns, relation,
+                            (field, ordinalPos) -> constraintMetadata.constraintKeyOrdinalPositions.contains(ordinalPos)))
+                    .orElseGet(() -> toFields(oldColumns, relation));
+        }
+
+        return toFields(oldColumns, relation)
+                .stream()
+                .filter(f -> relation.columns.stream().anyMatch(c -> c.name.equals(f.name) && c.partOfKey))
+                .collect(Collectors.toList());
+    }
+
+    private List<Field<?>> findUpdatedFields(
+            Character replicaIdentityType,
+            UpdateMessage update,
+            RelationMessage relation,
+            List<Field<?>> identifyingFields
+    ) {
+        if (replicaIdentityType != null && replicaIdentityType == 'K') {
+            // Remove fields that are part of key and have not changed.
+            // This can happen when using a composite key and only some of the columns are changed.
+
+            return toFields(update.columnsAfterUpdate, relation)
+                    .stream()
+                    .filter(f -> !identifyingFields.contains(f))
+                    .collect(Collectors.toList());
+        } else if (update.replicaIdentityType != null && update.replicaIdentityType == 'O') {
+            // Filter out columns that have not changed
+
+            List<Field<?>> oldColumns = toFields(update.oldTupleOrKeyColumns, relation);
+
+            return toFields(update.columnsAfterUpdate, relation)
+                    .stream()
+                    .filter(newCol -> !oldColumns.contains(newCol))
+                    .collect(Collectors.toList());
+        } else {
+            // Filter out columns that are part of key which have not changed
+
+            return toFields(update.columnsAfterUpdate, relation)
+                    .stream()
+                    .filter(f -> relation.columns.stream()
+                            .filter(c -> c.name.equals(f.name))
+                            .findAny().map(c -> !c.partOfKey).orElse(true)
+                    )
+                    .collect(Collectors.toList());
+        }
+    }
+
+    private static Optional<ConstraintMetadata> getPreferredConstraint(Optional<TableReplicationConfig> maybeConfig, List<ConstraintMetadata> constraints) {
+        return maybeConfig.map(config -> {
+            if (config.preferredConstraint == null) {
+                return null;
+            }
+
+            return constraints.stream().filter(c -> config.preferredConstraint.equals(c.constraintName))
+                    .findAny()
+                    .orElseThrow(() -> new IllegalStateException("Unable to find constraint with name: " + config.preferredConstraint));
+        });
+    }
+
+    private static Optional<ConstraintMetadata> findIdentifyingConstraint(
+            List<ConstraintMetadata> constraints,
+            List<ColumnMetadata> columns
+    ) {
+        for (ConstraintMetadata constraint : constraints) {
+            if (constraint.type.equals(ConstraintMetadata.ConstraintType.PRIMARY_KEY)) {
+                return of(constraint);
+            }
+
+            // Uses the first constraint without nullable fields as the identifier
+            if (constraint.type.equals(ConstraintMetadata.ConstraintType.UNIQUE)) {
+                boolean hasNullableField = columns
+                        .stream()
+                        .anyMatch(c -> constraint.constraintKeyOrdinalPositions.contains(c.ordinalPosition) && c.isNullable);
+
+                if (!hasNullableField) {
+                    return of(constraint);
+                }
+            }
+        }
+
+        return empty();
+    }
+
     private List<Field<?>> toFields(List<TupleDataColumn> columns, RelationMessage relation) {
         if (columns.size() > relation.columns.size()) {
             throw new IllegalArgumentException(format("Tuple data columns length (%d) must be equal or less than relation columns (%d)", columns.size(), relation.columns.size()));
@@ -349,7 +380,7 @@ public class PostgresEventCollector implements EventSource {
         return fields;
     }
 
-    private List<Field<?>> toFieldsV2(List<TupleDataColumn> columns, RelationMessage relation, Optional<List<Integer>> filterColumnOrdinals) {
+    private List<Field<?>> toFieldsV2(List<TupleDataColumn> columns, RelationMessage relation, FieldFilter filter) {
         if (columns.size() > relation.columns.size()) {
             throw new IllegalArgumentException(format("Tuple data columns length (%d) must be equal or less than relation columns (%d)", columns.size(), relation.columns.size()));
         }
@@ -357,18 +388,24 @@ public class PostgresEventCollector implements EventSource {
         List<Field<?>> fields = new ArrayList<>(columns.size());
 
         for (int i = 0; i < columns.size(); i++) {
-            if (filterColumnOrdinals.isPresent() && !filterColumnOrdinals.get().contains(i + 1)) {
-                continue;
-            }
-
             TupleDataColumn insertCol = columns.get(i);
             RelationMessage.Column relationCol = relation.columns.get(i);
             Field.Type type = pgDataTypes.get(relationCol.dataOid).getType();
 
-            fields.add(mapTupleDataToField(relationCol.name, type, insertCol));
+            Field<?> field = mapTupleDataToField(relationCol.name, type, insertCol);
+
+            if (filter.filterField(field, i + 1)) {
+                fields.add(field);
+            }
         }
 
         return fields;
+    }
+
+    private interface FieldFilter {
+
+        boolean filterField(Field<?> field, int ordinalPos);
+
     }
 
     private void removeNextTransactions(Connection connection, String upToLsn) {

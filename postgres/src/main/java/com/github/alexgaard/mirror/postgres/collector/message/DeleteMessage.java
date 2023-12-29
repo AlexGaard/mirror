@@ -1,6 +1,5 @@
 package com.github.alexgaard.mirror.postgres.collector.message;
 
-import com.github.alexgaard.mirror.core.exception.ParseException;
 import com.github.alexgaard.mirror.postgres.utils.PgoutputParser;
 import com.github.alexgaard.mirror.postgres.utils.TupleDataColumn;
 
@@ -14,14 +13,14 @@ public class DeleteMessage extends Message {
 
     public final int relationMessageOid;
 
-    public final char replicaIdentity;
+    public final char replicaIdentityType;
 
     public final List<TupleDataColumn> columns;
 
-    protected DeleteMessage(String lsn, int xid, int relationMessageOid, char replicaIdentity, List<TupleDataColumn> columns) {
+    protected DeleteMessage(String lsn, int xid, int relationMessageOid, char replicaIdentityType, List<TupleDataColumn> columns) {
         super(lsn, xid, Type.DELETE);
         this.relationMessageOid = relationMessageOid;
-        this.replicaIdentity = replicaIdentity;
+        this.replicaIdentityType = replicaIdentityType;
         this.columns = columns;
     }
 
@@ -74,14 +73,14 @@ public class DeleteMessage extends Message {
         DeleteMessage that = (DeleteMessage) o;
 
         if (relationMessageOid != that.relationMessageOid) return false;
-        if (replicaIdentity != that.replicaIdentity) return false;
+        if (replicaIdentityType != that.replicaIdentityType) return false;
         return columns.equals(that.columns);
     }
 
     @Override
     public int hashCode() {
         int result = relationMessageOid;
-        result = 31 * result + (int) replicaIdentity;
+        result = 31 * result + (int) replicaIdentityType;
         result = 31 * result + columns.hashCode();
         return result;
     }
@@ -90,7 +89,7 @@ public class DeleteMessage extends Message {
     public String toString() {
         return "DeleteMessage{" +
                 "relationMessageOid=" + relationMessageOid +
-                ", replicaIdentity=" + replicaIdentity +
+                ", replicaIdentity=" + replicaIdentityType +
                 ", columns=" + columns +
                 ", lsn='" + lsn + '\'' +
                 ", xid=" + xid +

@@ -1,6 +1,8 @@
 package com.github.alexgaard.mirror.postgres.metadata;
 
 
+import com.github.alexgaard.mirror.postgres.utils.ArrayUtils;
+
 import javax.sql.DataSource;
 import java.sql.*;
 import java.util.*;
@@ -37,11 +39,11 @@ public class PgMetadata {
 
     // Key = "<schema>.<table_name>"
     public static Map<String, List<ColumnMetadata>> getAllTableColumns(DataSource dataSource, String schema) {
-        var tableColumns = getAllTableColumnsList(dataSource, schema);
+        List<ColumnMetadata> tableColumns = getAllTableColumnsList(dataSource, schema);
         var map = new HashMap<String, List<ColumnMetadata>>();
 
         tableColumns.forEach(c -> {
-            var columns = map.computeIfAbsent(tableFullName(c.schemaName, c.tableName), (ignored) -> new ArrayList<>());
+            List<ColumnMetadata> columns = map.computeIfAbsent(tableFullName(c.schemaName, c.tableName), (ignored) -> new ArrayList<>());
             columns.add(c);
         });
 
@@ -50,11 +52,11 @@ public class PgMetadata {
 
     // Key = "<schema>.<table_name>"
     public static Map<String, List<ConstraintMetadata>> getAllTableConstraints(DataSource dataSource, String schema) {
-        var tableConstraints = getAllTableConstraintsList(dataSource, schema);
+        List<ConstraintMetadata> tableConstraints = getAllTableConstraintsList(dataSource, schema);
         var map = new HashMap<String, List<ConstraintMetadata>>();
 
         tableConstraints.forEach(c -> {
-            var constraints = map.computeIfAbsent(tableFullName(c.schemaName, c.tableName), (ignored) -> new ArrayList<>());
+            List<ConstraintMetadata> constraints = map.computeIfAbsent(tableFullName(c.schemaName, c.tableName), (ignored) -> new ArrayList<>());
             constraints.add(c);
         });
 
@@ -89,7 +91,7 @@ public class PgMetadata {
                 "                    on rel.oid = con.conrelid\n" +
                 "         inner join pg_catalog.pg_namespace nsp\n" +
                 "                    on nsp.oid = connamespace\n" +
-                "where nsp.nspname = ?";
+                "where nsp.nspname = ? order by con.oid";
 
         return query(dataSource, sql, statement -> {
             statement.setString(1, schema);
@@ -101,9 +103,7 @@ public class PgMetadata {
                     rs.getString("relname"),
                     rs.getString("conname"),
                     toConstraintType(rs.getString("contype").charAt(0)),
-                    Arrays.stream(((int[]) rs.getArray("conkey").getArray()))
-                            .boxed()
-                            .collect(Collectors.toList())
+                    ArrayUtils.toIntList((Short[]) rs.getArray("conkey").getArray())
             ));
         });
     }

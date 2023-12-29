@@ -215,8 +215,9 @@ public class PostgresEventCollectorTest {
             assertNotNull(deleteEvent.id);
             assertEquals("data_types", deleteEvent.table);
             assertEquals("public", deleteEvent.namespace);
-            assertEquals(18, deleteEvent.identifierFields.size());
-            assertTrue(deleteEvent.identifierFields.stream().anyMatch(f -> f.name.equals("id") && ((Integer) id).equals(f.value)));
+            assertEquals(1, deleteEvent.identifierFields.size());
+            assertEquals("id", deleteEvent.identifierFields.get(0).name);
+            assertEquals(id, deleteEvent.identifierFields.get(0).value);
         });
     }
 
@@ -261,7 +262,7 @@ public class PostgresEventCollectorTest {
 
         DataTypesDbo update = new DataTypesDbo();
         update.id = dbo.id;
-        update.int2_field = 5;
+        update.int2_field = 9;
         update.int4_field = 100;
         update.int8_field = 48L;
         update.float4_field = 5.32f;
@@ -371,13 +372,13 @@ public class PostgresEventCollectorTest {
 
     @Test
     public void should_handle_update_event_with_combined_unique_index() {
-        QueryUtils.update(dataSource, "insert into table_with_unique_field_combination(field_1, field_2) values(1, 'hello')");
+        QueryUtils.update(dataSource, "insert into table_with_unique_field_combination(field_1, field_3) values(1, 'hello')");
 
         drainWalMessages(dataSource, replicationName, replicationName);
 
         collector.start();
 
-        QueryUtils.update(dataSource, "update table_with_unique_field_combination set field_2 = 'world' where field_1 = 1");
+        QueryUtils.update(dataSource, "update table_with_unique_field_combination set field_2 = true where field_1 = 1");
 
         eventually(() -> {
             assertEquals(1, collectedTransactions.size());
@@ -390,24 +391,91 @@ public class PostgresEventCollectorTest {
             assertEquals(2, event.identifierFields.size());
             assertEquals("field_1", event.identifierFields.get(0).name);
             assertEquals(1, event.identifierFields.get(0).value);
-            assertEquals("field_2", event.identifierFields.get(1).name);
+            assertEquals("field_3", event.identifierFields.get(1).name);
             assertEquals("hello", event.identifierFields.get(1).value);
 
             assertEquals(1, event.fields.size());
             assertEquals("field_2", event.fields.get(0).name);
+            assertEquals(true, event.fields.get(0).value);
+        });
+    }
+
+    @Test
+    public void should_handle_update_event_with_combined_unique_index_when_key_changes() {
+        QueryUtils.update(dataSource, "insert into table_with_unique_field_combination(field_1, field_3) values(2, 'hello2')");
+
+        drainWalMessages(dataSource, replicationName, replicationName);
+
+        collector.start();
+
+        QueryUtils.update(dataSource, "update table_with_unique_field_combination set field_3 = 'world2', field_2 = true where field_1 = 2");
+
+        eventually(() -> {
+            assertEquals(1, collectedTransactions.size());
+            PostgresTransactionEvent transaction = collectedTransactions.get(0);
+
+            assertEquals(1, transaction.events.size());
+
+            UpdateEvent event = (UpdateEvent) transaction.events.get(0);
+
+            assertEquals(2, event.identifierFields.size());
+            assertEquals("field_1", event.identifierFields.get(0).name);
+            assertEquals(2, event.identifierFields.get(0).value);
+            assertEquals("field_3", event.identifierFields.get(1).name);
+            assertEquals("hello2", event.identifierFields.get(1).value);
+
+            assertEquals(2, event.fields.size());
+            assertEquals("field_2", event.fields.get(0).name);
+            assertEquals(true, event.fields.get(0).value);
+            assertEquals("field_3", event.fields.get(1).name);
+            assertEquals("world2", event.fields.get(1).value);
+        });
+    }
+
+    @Test
+    public void should_handle_update_event_for_table_with_nullable_unique_constraint() {
+        QueryUtils.update(dataSource, "insert into table_with_nullable_unique_field_combination(field_1) values(2)");
+
+        drainWalMessages(dataSource, replicationName, replicationName);
+
+        collector.start();
+
+        QueryUtils.update(dataSource, "update table_with_nullable_unique_field_combination set field_3 = 'world' where field_1 = 2");
+
+        eventually(() -> {
+            assertEquals(1, collectedTransactions.size());
+            PostgresTransactionEvent transaction = collectedTransactions.get(0);
+
+            assertEquals(1, transaction.events.size());
+
+            UpdateEvent event = (UpdateEvent) transaction.events.get(0);
+
+            assertEquals(3, event.identifierFields.size());
+            assertEquals("field_1", event.identifierFields.get(0).name);
+            assertEquals(2, event.identifierFields.get(0).value);
+
+            assertEquals("field_2", event.identifierFields.get(1).name);
+            assertNull(event.identifierFields.get(1).value);
+
+            assertEquals("field_3", event.identifierFields.get(2).name);
+            assertNull(event.identifierFields.get(2).value);
+
+
+            assertEquals(1, event.fields.size());
+            assertEquals("field_3", event.fields.get(0).name);
             assertEquals("world", event.fields.get(0).value);
         });
     }
 
     @Test
-    public void should_handle_update_event_with_full_replica_identity() {
-        QueryUtils.update(dataSource, "insert into table_with_full_replica_identity(field_1, field_2) values(1, 'hello')");
+    public void should_handle_update_event_with_multiple_constraints() {
+        QueryUtils.update(dataSource, "insert into table_with_multiple_unique(field_1, field_2) values(5, 'hello2')");
 
         drainWalMessages(dataSource, replicationName, replicationName);
 
         collector.start();
 
-        QueryUtils.update(dataSource, "update table_with_full_replica_identity set field_2 = 'world' where field_1 = 1 and field_2 = 'hello'");
+        QueryUtils.update(dataSource, "update table_with_multiple_unique set field_2 = 'world2' where field_1 = 5");
 
         eventually(() -> {
             assertEquals(1, collectedTransactions.size());
@@ -417,17 +485,87 @@ public class PostgresEventCollectorTest {
 
             UpdateEvent event = (UpdateEvent) transaction.events.get(0);
 
-            assertEquals(2, event.identifierFields.size());
+            assertEquals(1, event.identifierFields.size());
+            assertEquals("field_1", event.identifierFields.get(0).name);
+            assertEquals(5, event.identifierFields.get(0).value);
+
+            assertEquals(1, event.fields.size());
+            assertEquals("field_2", event.fields.get(0).name);
+            assertEquals("world2", event.fields.get(0).value);
+        });
+    }
+
+    @Test
+    public void should_handle_update_event_with_multiple_constraints_and_preferred_constraint() {
+        QueryUtils.update(dataSource, "insert into table_with_multiple_unique(field_1, field_2) values(2, 'hello')");
+
+        drainWalMessages(dataSource, replicationName, replicationName);
+
+        collector.setTableReplicationConfig(
+                "public",
+                "table_with_multiple_unique",
+                new TableReplicationConfig("table_with_multiple_unique_field_2_key")
+        );
+
+        collector.start();
+
+        QueryUtils.update(dataSource, "update table_with_multiple_unique set field_1 = 4 where field_1 = 2");
+
+        eventually(() -> {
+            assertEquals(1, collectedTransactions.size());
+            PostgresTransactionEvent transaction = collectedTransactions.get(0);
+
+            assertEquals(1, transaction.events.size());
+
+            UpdateEvent event = (UpdateEvent) transaction.events.get(0);
+
+            assertEquals(1, event.identifierFields.size());
+            assertEquals("field_2", event.identifierFields.get(0).name);
+            assertEquals("hello", event.identifierFields.get(0).value);
+
+            assertEquals(1, event.fields.size());
+            assertEquals("field_1", event.fields.get(0).name);
+            assertEquals(4, event.fields.get(0).value);
+        });
+
+        collector.setTableReplicationConfig(
+                "public",
+                "table_with_multiple_unique",
+                null
+        );
+    }
+
+    @Test
+    public void should_handle_update_event_for_table_without_key() {
+        QueryUtils.update(dataSource, "insert into table_without_key(field_1, field_2) values(1, 'hello')");
+
+        drainWalMessages(dataSource, replicationName, replicationName);
+
+        collector.start();
+
+        QueryUtils.update(dataSource, "update table_without_key set field_2 = 'world', field_3 = true where field_1 = 1 and field_2 = 'hello'");
+
+        eventually(() -> {
+            assertEquals(1, collectedTransactions.size());
+            PostgresTransactionEvent transaction = collectedTransactions.get(0);
+
+            assertEquals(1, transaction.events.size());
+
+            UpdateEvent event = (UpdateEvent) transaction.events.get(0);
+
+            assertEquals(3, event.identifierFields.size());
             assertEquals("field_1", event.identifierFields.get(0).name);
             assertEquals(1, event.identifierFields.get(0).value);
             assertEquals("field_2", event.identifierFields.get(1).name);
             assertEquals("hello", event.identifierFields.get(1).value);
+            assertEquals("field_3", event.identifierFields.get(2).name);
+            assertNull(event.identifierFields.get(2).value);
 
             assertEquals(2, event.fields.size());
-            assertEquals("field_1", event.fields.get(0).name);
-            assertEquals(1, event.fields.get(0).value);
-            assertEquals("field_2", event.fields.get(1).name);
-            assertEquals("world", event.fields.get(1).value);
+            assertEquals("field_2", event.fields.get(0).name);
+            assertEquals("world", event.fields.get(0).value);
+            assertEquals("field_3", event.fields.get(1).name);
+            assertEquals(true, event.fields.get(1).value);
         });
     }
 

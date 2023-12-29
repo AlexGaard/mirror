@@ -5,25 +5,36 @@ create table if not exists table_with_unique_field
     unique (field_1)
 );
 
-alter table table_with_unique_field replica identity using index table_with_unique_field_field_1_key;
-
 create table if not exists table_with_unique_field_combination
 (
     field_1 integer not null,
-    field_2 varchar not null,
-    unique (field_1, field_2)
+    field_2 boolean,
+    field_3 varchar not null,
+    unique (field_1, field_3)
 );
 
-alter table table_with_unique_field_combination replica identity using index table_with_unique_field_combination_field_1_field_2_key;
-
-create table if not exists table_with_full_replica_identity
+create table if not exists table_with_nullable_unique_field_combination
 (
     field_1 integer not null,
-    field_2 varchar not null
+    field_2 boolean,
+    field_3 varchar,
+    unique (field_1, field_3)
 );
 
-alter table table_with_full_replica_identity replica identity full;
+create table if not exists table_with_multiple_unique
+(
+    field_1 integer not null,
+    field_2 varchar not null,
+    unique (field_1),
+    unique (field_2)
+);
 
+create table if not exists table_without_key
+(
+    field_1 integer not null,
+    field_2 varchar,
+    field_3 boolean
+);
 
 create table if not exists data_types
 (

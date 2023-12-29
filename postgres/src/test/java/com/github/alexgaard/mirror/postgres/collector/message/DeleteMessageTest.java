@@ -15,7 +15,7 @@ public class DeleteMessageTest {
         DeleteMessage message = DeleteMessage.parse(rawMessage);
 
         assertEquals(16397, message.relationMessageOid);
-        assertEquals('K', message.replicaIdentity);
+        assertEquals('K', message.replicaIdentityType);
         assertEquals(4, message.columns.size());
         assertEquals(TupleDataColumn.Type.TEXT, message.columns.get(0).type);
         assertEquals("1", message.columns.get(0).getData());

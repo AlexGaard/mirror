@@ -15,7 +15,7 @@ public class UpdateMessageTest {
 
         assertEquals(49153, message.relationMessageOid);
         assertNull(message.replicaIdentityType);
-        assertTrue(message.oldTupleOrPkColumns.isEmpty());
+        assertTrue(message.oldTupleOrKeyColumns.isEmpty());
         assertEquals(18, message.columnsAfterUpdate.size());
         assertEquals("43", message.columnsAfterUpdate.get(0).getData());
         assertEquals("8", message.columnsAfterUpdate.get(1).getData());
