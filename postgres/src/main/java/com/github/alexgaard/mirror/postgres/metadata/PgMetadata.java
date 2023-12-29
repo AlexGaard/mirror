@@ -91,7 +91,7 @@ public class PgMetadata {
                 "                    on rel.oid = con.conrelid\n" +
                 "         inner join pg_catalog.pg_namespace nsp\n" +
                 "                    on nsp.oid = connamespace\n" +
-                "where nsp.nspname = ? order by con.oid";
+                "where nsp.nspname = ? order by con.contype, con.oid";
 
         return query(dataSource, sql, statement -> {
             statement.setString(1, schema);

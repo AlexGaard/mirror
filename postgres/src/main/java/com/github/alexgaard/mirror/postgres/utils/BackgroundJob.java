@@ -18,8 +18,6 @@ public class BackgroundJob {
 
     private final long maxBackoffMs;
 
-    private volatile boolean isStopped = true;
-
     private long currentBackoffMs;
 
     private Thread job;
@@ -32,21 +30,15 @@ public class BackgroundJob {
     }
 
     public boolean isRunning() {
-        return !isStopped;
+        return job != null && job.isAlive();
     }
 
     public synchronized void start(ExceptionUtil.UnsafeRunnable unsafeRunnable) {
         stop();
 
-        isStopped = false;
-
         job = new Thread(() -> {
-            while (true) {
+            while (!Thread.interrupted()) {
                 try {
-                    if (isStopped) {
-                        return;
-                    }
-
                     unsafeRunnable.run();
 
                     currentBackoffMs = intervalMs;
@@ -74,8 +66,6 @@ public class BackgroundJob {
         if (job != null && job.isAlive()) {
             job.interrupt();
         }
-
-        isStopped = true;
     }
 
 }

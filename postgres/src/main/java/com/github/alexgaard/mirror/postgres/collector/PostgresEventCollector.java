@@ -278,16 +278,31 @@ public class PostgresEventCollector implements EventSource {
             Optional<ConstraintMetadata> identifyingConstraint = getPreferredConstraint(replicationConfig, constraints)
                     .or(() -> findIdentifyingConstraint(constraints, columns));
 
+            List<Field<?>> fields = toFields(oldColumns, relation);
+
             return identifyingConstraint
-                    .map(constraintMetadata -> toFieldsV2(oldColumns, relation,
-                            (field, ordinalPos) -> constraintMetadata.constraintKeyOrdinalPositions.contains(ordinalPos)))
-                    .orElseGet(() -> toFields(oldColumns, relation));
+                    .map(constraint -> filterOrdinalPosition(fields, constraint.constraintKeyOrdinalPositions))
+                    .orElse(fields);
         }
 
         return toFields(oldColumns, relation)
                 .stream()
                 .filter(f -> relation.columns.stream().anyMatch(c -> c.name.equals(f.name) && c.partOfKey))
                 .collect(Collectors.toList());
+    }
+
+    private static List<Field<?>> filterOrdinalPosition(List<Field<?>> fields, List<Integer> ordinalPositions) {
+        int ordinalPos = 1;
+        List<Field<?>> filteredFields = new ArrayList<>();
+
+        for (Field<?> field : fields) {
+            if (ordinalPositions.contains(ordinalPos)) {
+                filteredFields.add(field);
+            }
+            ordinalPos++;
+        }
+
+        return filteredFields;
     }
 
     private List<Field<?>> findUpdatedFields(
@@ -342,6 +357,7 @@ public class PostgresEventCollector implements EventSource {
             List<ConstraintMetadata> constraints,
             List<ColumnMetadata> columns
     ) {
+        // Constraints are expected to be sorted primary key before unique
         for (ConstraintMetadata constraint : constraints) {
             if (constraint.type.equals(ConstraintMetadata.ConstraintType.PRIMARY_KEY)) {
                 return of(constraint);
@@ -378,34 +394,6 @@ public class PostgresEventCollector implements EventSource {
         }
 
         return fields;
-    }
-
-    private List<Field<?>> toFieldsV2(List<TupleDataColumn> columns, RelationMessage relation, FieldFilter filter) {
-        if (columns.size() > relation.columns.size()) {
-            throw new IllegalArgumentException(format("Tuple data columns length (%d) must be equal or less than relation columns (%d)", columns.size(), relation.columns.size()));
-        }
-
-        List<Field<?>> fields = new ArrayList<>(columns.size());
-
-        for (int i = 0; i < columns.size(); i++) {
-            TupleDataColumn insertCol = columns.get(i);
-            RelationMessage.Column relationCol = relation.columns.get(i);
-            Field.Type type = pgDataTypes.get(relationCol.dataOid).getType();
-
-            Field<?> field = mapTupleDataToField(relationCol.name, type, insertCol);
-
-            if (filter.filterField(field, i + 1)) {
-                fields.add(field);
-            }
-        }
-
-        return fields;
-    }
-
-    private interface FieldFilter {
-
-        boolean filterField(Field<?> field, int ordinalPos);
-
     }
 
     private void removeNextTransactions(Connection connection, String upToLsn) {

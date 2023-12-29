@@ -24,6 +24,7 @@ import static com.github.alexgaard.mirror.common_test.TestDataGenerator.newId;
 import static com.github.alexgaard.mirror.common_test.TestDataGenerator.newReplicationName;
 import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.insertSkipTransactionMessage;
 
+import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.update;
 import static java.lang.String.format;
 import static java.time.temporal.ChronoUnit.MILLIS;
 import static org.junit.jupiter.api.Assertions.*;
@@ -222,26 +223,23 @@ public class PostgresEventCollectorTest {
     }
 
     @Test
-    public void should_skip_transaction_with_skip_message() {
+    public void should_skip_transaction_with_skip_message() throws Exception {
+        drainWalMessages(dataSource, replicationName, replicationName);
+
         collector.start();
 
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
+
             try (Statement statement = connection.createStatement()) {
                 statement.execute(format("insert into data_types (id) values (%d)", newId()));
             }
 
             insertSkipTransactionMessage(connection);
             connection.commit();
-        } catch (Exception e) {
-            throw new RuntimeException(e);
         }
 
-        try (Connection connection = dataSource.getConnection(); Statement statement = connection.createStatement()) {
-            statement.execute(format("insert into data_types (id) values (%d)", newId()));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+        update(dataSource, format("insert into data_types (id) values (%d)", newId()));
 
         eventually(() -> {
             assertEquals(1, collectedTransactions.size());
@@ -567,6 +565,93 @@ public class PostgresEventCollectorTest {
             assertEquals("field_3", event.fields.get(1).name);
             assertEquals(true, event.fields.get(1).value);
         });
+    }
+
+    @Test
+    public void should_handle_delete_event_with_combined_unique_index() {
+        update(dataSource, "insert into table_with_unique_field_combination(field_1, field_3) values(12, 'hello')");
+
+        drainWalMessages(dataSource, replicationName, replicationName);
+
+        collector.start();
+
+        update(dataSource, "delete from table_with_unique_field_combination where field_1 = 12");
+
+        eventually(() -> {
+            assertEquals(1, collectedTransactions.size());
+            PostgresTransactionEvent transaction = collectedTransactions.get(0);
+
+            assertEquals(1, transaction.events.size());
+
+            DeleteEvent event = (DeleteEvent) transaction.events.get(0);
+
+            assertEquals(2, event.identifierFields.size());
+            assertEquals("field_1", event.identifierFields.get(0).name);
+            assertEquals(12, event.identifierFields.get(0).value);
+
+            assertEquals("field_3", event.identifierFields.get(1).name);
+            assertEquals("hello", event.identifierFields.get(1).value);
+        });
+    }
+
+    @Test
+    public void should_handle_delete_event_with_multiple_unique_keys() {
+        update(dataSource, "insert into table_with_multiple_unique(field_1, field_2) values(8, 'hello4')");
+
+        drainWalMessages(dataSource, replicationName, replicationName);
+
+        collector.start();
+
+        update(dataSource, "delete from table_with_multiple_unique where field_1 = 8");
+
+        eventually(() -> {
+            assertEquals(1, collectedTransactions.size());
+            PostgresTransactionEvent transaction = collectedTransactions.get(0);
+
+            assertEquals(1, transaction.events.size());
+
+            DeleteEvent event = (DeleteEvent) transaction.events.get(0);
+
+            assertEquals(1, event.identifierFields.size());
+            assertEquals("field_1", event.identifierFields.get(0).name);
+            assertEquals(8, event.identifierFields.get(0).value);
+        });
+    }
+
+    @Test
+    public void should_handle_delete_event_with_preferred_constraint() {
+        update(dataSource, "insert into table_with_multiple_unique(field_1, field_2) values(9, 'hello5')");
+
+        drainWalMessages(dataSource, replicationName, replicationName);
+
+        collector.setTableReplicationConfig(
+                "public",
+                "table_with_multiple_unique",
+                new TableReplicationConfig("table_with_multiple_unique_field_2_key")
+        );
+
+        collector.start();
+
+        update(dataSource, "delete from table_with_multiple_unique where field_1 = 9");
+
+        eventually(() -> {
+            assertEquals(1, collectedTransactions.size());
+            PostgresTransactionEvent transaction = collectedTransactions.get(0);
+
+            assertEquals(1, transaction.events.size());
+
+            DeleteEvent event = (DeleteEvent) transaction.events.get(0);
+
+            assertEquals(1, event.identifierFields.size());
+            assertEquals("field_2", event.identifierFields.get(0).name);
+            assertEquals("hello5", event.identifierFields.get(0).value);
+        });
+
+        collector.setTableReplicationConfig(
+                "public",
+                "table_with_multiple_unique",
+                null
+        );
     }
 
 }
