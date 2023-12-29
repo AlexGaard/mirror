@@ -9,6 +9,7 @@ import com.github.alexgaard.mirror.postgres.metadata.ColumnMetadata;
 import com.github.alexgaard.mirror.postgres.metadata.ConstraintMetadata;
 import com.github.alexgaard.mirror.postgres.metadata.PgDataType;
 import com.github.alexgaard.mirror.postgres.metadata.PgMetadata;
+import com.github.alexgaard.mirror.postgres.utils.BackgroundJob;
 import com.github.alexgaard.mirror.postgres.utils.PgTimestamp;
 import com.github.alexgaard.mirror.postgres.utils.TupleDataColumn;
 import org.postgresql.util.PGobject;
@@ -28,8 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.runWithResult;
-import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.safeRunnable;
+import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.*;
 import static com.github.alexgaard.mirror.postgres.metadata.PgMetadata.tableFullName;
 import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.MESSAGE_PREFIX;
 import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.SKIP_TRANSACTION_MSG;
@@ -47,12 +47,6 @@ public class PostgresEventCollector implements EventSource {
 
     private final int maxChangesPrPoll = 500;
 
-    private final long backoffIncreaseMs = 1000;
-
-    private final long maxBackoffMs = 10_000;
-
-    private final ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
-
     private final String sourceName;
 
     private final Map<Integer, PgDataType> pgDataTypes = new HashMap<>();
@@ -63,25 +57,24 @@ public class PostgresEventCollector implements EventSource {
 
     private final DataSource dataSource;
 
-    private final Duration dataChangePollInterval;
-
     private final PgReplication pgReplication;
 
+    private final BackgroundJob backgroundJob;
+
     private EventSink eventSink;
-
-    private boolean isStarted = false;
-
-    private long currentBackoffMs = 0;
-
-    private ScheduledFuture<?> pollSchedule;
 
     public PostgresEventCollector(String sourceName, DataSource dataSource, Duration pollInterval, PgReplication pgReplication) {
         this.sourceName = sourceName;
         this.dataSource = dataSource;
-        this.dataChangePollInterval = pollInterval;
         this.pgReplication = pgReplication;
         this.replicationSlotName = pgReplication.getReplicationSlotName();
         this.publicationName = pgReplication.getPublicationName();
+        this.backgroundJob = new BackgroundJob(
+                this.getClass().getSimpleName(),
+                pollInterval,
+                Duration.ofSeconds(1),
+                Duration.ofSeconds(10)
+        );
     }
 
     public PostgresEventCollector(String sourceName, DataSource dataSource, PgReplication pgReplication) {
@@ -99,15 +92,13 @@ public class PostgresEventCollector implements EventSource {
 
     @Override
     public synchronized void start() {
-        if (isStarted) {
+        if (backgroundJob.isRunning()) {
             return;
         }
 
         if (eventSink == null) {
             throw new IllegalStateException("cannot start without a sink to consume the events");
         }
-
-        isStarted = true;
 
         log.debug("Collecting metadata");
 
@@ -124,52 +115,39 @@ public class PostgresEventCollector implements EventSource {
 
         log.debug("Starting event collector");
 
-        pollSchedule = executorService.scheduleWithFixedDelay(
-                safeRunnable(this::checkForDataChanges),
-                dataChangePollInterval.toMillis(),
-                dataChangePollInterval.toMillis(),
-                TimeUnit.MILLISECONDS
-        );
+        backgroundJob.start(this::checkForDataChanges);
     }
 
     @Override
     public synchronized void stop() {
-        if (!isStarted) {
-            return;
-        }
-
-        isStarted = false;
-
-        if (pollSchedule != null && !pollSchedule.isDone()) {
-            pollSchedule.cancel(false);
-        }
+        backgroundJob.stop();
     }
 
-    private void checkForDataChanges() throws InterruptedException {
+    private void checkForDataChanges() throws SQLException {
         try (Connection connection = dataSource.getConnection()) {
             String lastLsn = null;
 
+            List<RawMessage> rawMessages = peekDataChanges(connection);
+
+            if (rawMessages.isEmpty()) {
+                return;
+            }
+
+            List<Message> messages = rawMessages
+                    .stream()
+                    .map(MessageParser::parse)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
+
+            // Relation messages are sometimes reused across transactions to save bandwidth if enough transactions use the same relation.
+            List<RelationMessage> relationMessages = messages.stream()
+                    .filter(m -> m instanceof RelationMessage)
+                    .map(m -> (RelationMessage) m)
+                    .collect(Collectors.toList());
+
+            List<List<Message>> transactions = splitIntoTransactions(messages);
+
             try {
-                List<RawMessage> rawMessages = peekDataChanges(connection);
-
-                if (rawMessages.isEmpty()) {
-                    return;
-                }
-
-                List<Message> messages = rawMessages
-                        .stream()
-                        .map(MessageParser::parse)
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toList());
-
-                // Relation messages are sometimes reused across transactions to save bandwidth if enough transactions use the same relation.
-                List<RelationMessage> relationMessages = messages.stream()
-                        .filter(m -> m instanceof RelationMessage)
-                        .map(m -> (RelationMessage) m)
-                        .collect(Collectors.toList());
-
-                List<List<Message>> transactions = splitIntoTransactions(messages);
-
                 for (List<Message> transaction : transactions) {
                     if (shouldTransactionBeSkipped(transaction)) {
                         continue;
@@ -182,7 +160,7 @@ public class PostgresEventCollector implements EventSource {
                             .findAny()
                             .orElseThrow();
 
-                    var pgTransaction = PostgresTransactionEvent.of(
+                    PostgresTransactionEvent pgTransaction = PostgresTransactionEvent.of(
                             sourceName,
                             transactionEvents,
                             PgTimestamp.toOffsetDateTime(commit.commitTimestamp)
@@ -193,36 +171,14 @@ public class PostgresEventCollector implements EventSource {
                     if (result.isOk()) {
                         lastLsn = commit.lsn;
                     } else {
-                        if (lastLsn != null) {
-                            removeNextTransactions(connection, lastLsn);
-                        }
-
-                        log.error("Caught exception while consuming transaction", result.getError().get());
-
-                        currentBackoffMs = Math.min(currentBackoffMs + backoffIncreaseMs, maxBackoffMs);
-                        Thread.sleep(currentBackoffMs);
-                        return;
+                        throw softenException(result.getError().get());
                     }
                 }
-
+            } finally {
                 if (lastLsn != null) {
                     removeNextTransactions(connection, lastLsn);
                 }
-                currentBackoffMs = 0;
-            } catch (Exception e) {
-                log.error("Caught exception while retrieving WAL messages", e);
-                if (lastLsn != null) {
-                    removeNextTransactions(connection, lastLsn);
-                }
-
-                // TODO: Maybe move backoff into safeRunnable()
-                currentBackoffMs = Math.min(currentBackoffMs + backoffIncreaseMs, maxBackoffMs);
-                Thread.sleep(currentBackoffMs);
             }
-        } catch (Exception e) {
-            log.error("Uncaught exception while retrieving WAL messages", e);
-            currentBackoffMs = Math.min(currentBackoffMs + backoffIncreaseMs, maxBackoffMs);
-            Thread.sleep(currentBackoffMs);
         }
     }
 
@@ -301,46 +257,46 @@ public class PostgresEventCollector implements EventSource {
                     } else if (update.replicaIdentityType != null && update.replicaIdentityType == 'O') {
                         // TODO: Check if pk or unique idx is available. Use if possible, if not default to normal FULL
 
-                        String fullName = tableFullName(relation.namespace, relation.relationName);
+//                        String fullName = tableFullName(relation.namespace, relation.relationName);
 
-                        var constraints = tableConstraintMetadata.get(fullName);
-                        var columns = tableColumnMetadata.get(fullName);
-
-                        var maybePkConstraint = constraints
-                                .stream()
-                                .filter(c -> c.type.equals(ConstraintMetadata.ConstraintType.PRIMARY_KEY))
-                                .findAny();
-
-                        var uniqueConstraints = constraints
-                                .stream()
-                                .filter(c -> c.type.equals(ConstraintMetadata.ConstraintType.UNIQUE))
-                                .collect(Collectors.toList());
-
-                        if (maybePkConstraint.isPresent()) {
-                            ConstraintMetadata pkConstraint = maybePkConstraint.get();
-                            identifyingFields = toFieldsV2(
-                                    update.oldTupleOrPkColumns,
-                                    relation,
-                                    Optional.of(pkConstraint.constraintKeyOrdinalPositions)
-                            );
-                        } else if (uniqueConstraints.size() == 1) {
-                            ConstraintMetadata uniqueConstraint = uniqueConstraints.get(0);
-
-                            identifyingFields = toFieldsV2(
-                                    update.oldTupleOrPkColumns,
-                                    relation,
-                                    Optional.of(uniqueConstraint.constraintKeyOrdinalPositions)
-                            );
-                        } else if (uniqueConstraints.size() > 1) {
-                            throw new IllegalStateException("Unable to choose which constraint to use");
-                        } else {
-                            identifyingFields = toFields(update.oldTupleOrPkColumns, relation);
-                        }
+//                        List<ConstraintMetadata> constraints = tableConstraintMetadata.get(fullName);
+//                        List<ColumnMetadata> columns = tableColumnMetadata.get(fullName);
+//
+//                        Optional<ConstraintMetadata> maybePkConstraint = constraints
+//                                .stream()
+//                                .filter(c -> c.type.equals(ConstraintMetadata.ConstraintType.PRIMARY_KEY))
+//                                .findAny();
+//
+//                        List<ConstraintMetadata> uniqueConstraints = constraints
+//                                .stream()
+//                                .filter(c -> c.type.equals(ConstraintMetadata.ConstraintType.UNIQUE))
+//                                .collect(Collectors.toList());
+//
+//                        if (maybePkConstraint.isPresent()) {
+//                            ConstraintMetadata pkConstraint = maybePkConstraint.get();
+//                            identifyingFields = toFieldsV2(
+//                                    update.oldTupleOrPkColumns,
+//                                    relation,
+//                                    Optional.of(pkConstraint.constraintKeyOrdinalPositions)
+//                            );
+//                        } else if (uniqueConstraints.size() == 1) {
+//                            ConstraintMetadata uniqueConstraint = uniqueConstraints.get(0);
+//
+//                            identifyingFields = toFieldsV2(
+//                                    update.oldTupleOrPkColumns,
+//                                    relation,
+//                                    Optional.of(uniqueConstraint.constraintKeyOrdinalPositions)
+//                            );
+//                        } else if (uniqueConstraints.size() > 1) {
+//                            throw new IllegalStateException("Unable to choose which constraint to use");
+//                        } else {
+//                            identifyingFields = toFields(update.oldTupleOrPkColumns, relation);
+//                        }
 
                         // TODO: Find diff between new and old for updatedFields
 
                         // REPLICA IDENTITY = FULL, all the old fields must be used together as a key
-//                        identifyingFields = toFields(update.oldTupleOrPkColumns, relation);
+                        identifyingFields = toFields(update.oldTupleOrPkColumns, relation);
                         updatedFields = toFields(update.columnsAfterUpdate, relation);
                     } else {
                         identifyingFields = toFields(update.columnsAfterUpdate, relation)
@@ -419,7 +375,7 @@ public class PostgresEventCollector implements EventSource {
         String sql = "SELECT 1 FROM pg_logical_slot_get_binary_changes(?, ?, NULL, 'messages', 'true', 'proto_version', '1', 'publication_names', ?)";
 
         query(connection, sql, statement -> {
-            var obj = new PGobject();
+            PGobject obj = new PGobject();
             obj.setType("pg_lsn");
             obj.setValue(upToLsn);
 
