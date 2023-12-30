@@ -21,14 +21,14 @@ public class PgReplication {
     private final static Logger log = LoggerFactory.getLogger(PgReplication.class);
 
     public static void setup(DataSource dataSource, CollectorConfig config) {
-        if (!hasReplicationSlot(dataSource, config.getReplicationSlotName())) {
-            log.info("Creating new replication slot {}", config.getReplicationSlotName());
-            createReplicationSlot(dataSource, config.getReplicationSlotName());
-        }
-
         if (!hasPublication(dataSource, config.getPublicationName())) {
             log.info("Creating new publication {}", config.getPublicationName());
             createPublication(dataSource, config.getPublicationName());
+        }
+
+        if (!hasReplicationSlot(dataSource, config.getReplicationSlotName())) {
+            log.info("Creating new replication slot {}", config.getReplicationSlotName());
+            createReplicationSlot(dataSource, config.getReplicationSlotName());
         }
 
         config.getSchemaAndIncludedTables().forEach((schema, includedTables) -> {
