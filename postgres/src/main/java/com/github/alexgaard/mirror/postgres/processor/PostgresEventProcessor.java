@@ -4,6 +4,9 @@ import com.github.alexgaard.mirror.core.EventSink;
 import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.Event;
 import com.github.alexgaard.mirror.postgres.event.*;
+import com.github.alexgaard.mirror.postgres.processor.config.InsertConflictStrategy;
+import com.github.alexgaard.mirror.postgres.processor.config.ProcessorConfig;
+import com.github.alexgaard.mirror.postgres.processor.config.ProcessorTableConfig;
 import com.github.alexgaard.mirror.postgres.utils.QueryUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,10 +18,10 @@ import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import static com.github.alexgaard.mirror.postgres.metadata.PgMetadata.tableFullName;
 import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.insertSkipTransactionMessage;
 import static com.github.alexgaard.mirror.postgres.utils.SqlFieldType.sqlFieldType;
 import static java.lang.String.format;
@@ -31,9 +34,17 @@ public class PostgresEventProcessor implements EventSink {
 
     private final Map<String, Integer> lastSourceTransactionId = new HashMap<>();
 
+    private final ProcessorConfig config;
+
     private final DataSource dataSource;
 
     public PostgresEventProcessor(DataSource dataSource) {
+        this.config = new ProcessorConfig();
+        this.dataSource = dataSource;
+    }
+
+    public PostgresEventProcessor(ProcessorConfig config, DataSource dataSource) {
+        this.config = config;
         this.dataSource = dataSource;
     }
 
@@ -90,13 +101,11 @@ public class PostgresEventProcessor implements EventSink {
     }
 
     private void handleInsertDataChange(InsertEvent insert, Connection connection) {
-        // TODO: Add option for on conflict do nothing
-
         String fields = createSqlFieldParameters(insert.fields);
-
         String templateParams = createSqlValuesTemplate(insert.fields);
+        String onConflictSql = createOnConflictSql(insert, config.getTableConfig().get(tableFullName(insert.namespace, insert.table)));
 
-        String sql = format("INSERT INTO %s.%s (%s) VALUES (%s)", insert.namespace, insert.table, fields, templateParams);
+        String sql = format("INSERT INTO %s.%s (%s) VALUES (%s) %s", insert.namespace, insert.table, fields, templateParams, onConflictSql);
 
         QueryUtils.update(connection, sql, statement -> {
             int paramCounter = 1;
@@ -151,6 +160,26 @@ public class PostgresEventProcessor implements EventSink {
 
             statement.executeUpdate();
         });
+    }
+
+    private static String createOnConflictSql(InsertEvent insert, ProcessorTableConfig config) {
+        if (config == null) {
+            return "";
+        }
+
+        if (config.insertConflictConstraint == null) {
+            throw new IllegalArgumentException("Config is missing insertConflictIndex");
+        }
+
+        if (config.insertConflictStrategy == InsertConflictStrategy.DO_NOTHING) {
+            return format("ON CONFLICT ON CONSTRAINT %s DO NOTHING", config.insertConflictConstraint);
+        } else {
+            String setFieldsSql = insert.fields.stream()
+                    .map(f -> format("%s = EXCLUDED.%s", f.name, f.name))
+                    .collect(Collectors.joining(", "));
+
+            return format("ON CONFLICT ON CONSTRAINT %s DO UPDATE SET %s", config.insertConflictConstraint, setFieldsSql);
+        }
     }
 
     private static String createSqlFieldParameters(List<Field<?>> fields) {

@@ -4,7 +4,7 @@ import com.github.alexgaard.mirror.core.EventSink;
 import com.github.alexgaard.mirror.core.EventSource;
 import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.postgres.collector.config.CollectorConfig;
-import com.github.alexgaard.mirror.postgres.collector.config.TableConfig;
+import com.github.alexgaard.mirror.postgres.collector.config.CollectorTableConfig;
 import com.github.alexgaard.mirror.postgres.collector.message.*;
 import com.github.alexgaard.mirror.postgres.event.*;
 import com.github.alexgaard.mirror.postgres.metadata.ColumnMetadata;
@@ -22,7 +22,6 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -252,7 +251,7 @@ public class PostgresEventCollector implements EventSource {
 
             List<ConstraintMetadata> constraints = ofNullable(tableConstraintMetadata.get(fullName)).orElseGet(Collections::emptyList);
             List<ColumnMetadata> columns = tableColumnMetadata.get(fullName);
-            Optional<TableConfig> replicationConfig = ofNullable(config.getTableConfig().get(fullName));
+            Optional<CollectorTableConfig> replicationConfig = ofNullable(config.getTableConfig().get(fullName));
 
             Optional<ConstraintMetadata> identifyingConstraint = getPreferredConstraint(replicationConfig, constraints)
                     .or(() -> findIdentifyingConstraint(constraints, columns));
@@ -320,7 +319,7 @@ public class PostgresEventCollector implements EventSource {
         }
     }
 
-    private static Optional<ConstraintMetadata> getPreferredConstraint(Optional<TableConfig> maybeConfig, List<ConstraintMetadata> constraints) {
+    private static Optional<ConstraintMetadata> getPreferredConstraint(Optional<CollectorTableConfig> maybeConfig, List<ConstraintMetadata> constraints) {
         return maybeConfig.map(config -> {
             if (config.preferredConstraint == null) {
                 return null;

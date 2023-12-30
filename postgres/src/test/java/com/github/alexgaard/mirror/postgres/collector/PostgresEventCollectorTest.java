@@ -4,7 +4,7 @@ import com.github.alexgaard.mirror.common_test.*;
 import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.postgres.collector.config.CollectorConfig;
 import com.github.alexgaard.mirror.postgres.collector.config.CollectorConfigBuilder;
-import com.github.alexgaard.mirror.postgres.collector.config.TableConfig;
+import com.github.alexgaard.mirror.postgres.collector.config.CollectorTableConfig;
 import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
 import com.github.alexgaard.mirror.postgres.event.InsertEvent;
 import com.github.alexgaard.mirror.postgres.event.PostgresTransactionEvent;
@@ -54,7 +54,7 @@ public class PostgresEventCollectorTest {
 
         DbUtils.initTables(dataSource);
 
-        collectorConfig = CollectorConfigBuilder.with(dataSource)
+        collectorConfig = new CollectorConfigBuilder(dataSource)
                 .includeAll()
                 .replicationSlotName(replicationName)
                 .publicationName(replicationName)
@@ -510,7 +510,7 @@ public class PostgresEventCollectorTest {
 
         collectorConfig.getTableConfig().put(
                 tableFullName("public", "table_with_multiple_unique"),
-                new TableConfig("table_with_multiple_unique_field_2_key")
+                new CollectorTableConfig("table_with_multiple_unique_field_2_key")
         );
 
         collector.start();
@@ -633,7 +633,7 @@ public class PostgresEventCollectorTest {
 
         collectorConfig.getTableConfig().put(
                 tableFullName("public", "table_with_multiple_unique"),
-                new TableConfig("table_with_multiple_unique_field_2_key")
+                new CollectorTableConfig("table_with_multiple_unique_field_2_key")
         );
 
         collector.start();
@@ -673,7 +673,7 @@ public class PostgresEventCollectorTest {
 
         collector.setEventSink(event -> {
             if (counter.incrementAndGet() < 3) {
-                return Result.error(new RuntimeException());
+                return Result.error(new RuntimeException("Not ready"));
             }
 
             return Result.ok();

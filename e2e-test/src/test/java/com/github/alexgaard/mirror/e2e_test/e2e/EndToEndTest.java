@@ -93,14 +93,14 @@ public class EndToEndTest {
         RabbitMqSingletonContainer.setupExchangeWithQueue(queue1, exchange, key1);
         RabbitMqSingletonContainer.setupExchangeWithQueue(queue2, exchange, key2);
 
-        CollectorConfig config1 = CollectorConfigBuilder.with(dataSource1)
+        CollectorConfig config1 = new CollectorConfigBuilder(dataSource1)
                 .includeAll()
                 .replicationSlotName(name)
                 .publicationName(name)
                 .pollInterval(Duration.ofMillis(100))
                 .build();
 
-        CollectorConfig config2 = CollectorConfigBuilder.with(dataSource2)
+        CollectorConfig config2 = new CollectorConfigBuilder(dataSource2)
                 .includeAll()
                 .replicationSlotName(name)
                 .publicationName(name)

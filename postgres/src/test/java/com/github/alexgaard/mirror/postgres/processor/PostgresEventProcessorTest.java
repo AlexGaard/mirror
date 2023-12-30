@@ -4,7 +4,12 @@ import com.github.alexgaard.mirror.common_test.DataTypesDbo;
 import com.github.alexgaard.mirror.common_test.DataTypesRepository;
 import com.github.alexgaard.mirror.common_test.DbUtils;
 import com.github.alexgaard.mirror.common_test.PostgresSingletonContainer;
+import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.postgres.event.*;
+import com.github.alexgaard.mirror.postgres.processor.config.InsertConflictStrategy;
+import com.github.alexgaard.mirror.postgres.processor.config.ProcessorConfig;
+import com.github.alexgaard.mirror.postgres.processor.config.ProcessorConfigBuilder;
+import com.github.alexgaard.mirror.postgres.processor.config.ProcessorTableConfig;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -90,6 +95,91 @@ public class PostgresEventProcessorTest {
         assertEquals(((LocalDateTime) fields.get(16).value).truncatedTo(MILLIS), dataTypes.timestamp_field.truncatedTo(MILLIS));
         assertEquals(((OffsetDateTime) fields.get(17).value).truncatedTo(MILLIS), dataTypes.timestamptz_field.truncatedTo(MILLIS));
     }
+
+    @Test
+    public void should_handle_insert_with_do_nothing_strategy() {
+        DataTypesDbo dbo = new DataTypesDbo();
+        dbo.id = newId();
+
+        dataTypesRepository.insertDataTypes(dbo);
+
+        eventually(() -> {
+            assertNotNull(dataTypesRepository.getDataTypes(dbo.id));
+        });
+
+        ProcessorConfig config = new ProcessorConfigBuilder()
+                .configure("data_types", new ProcessorTableConfig(
+                        "data_types_pkey",
+                        InsertConflictStrategy.DO_NOTHING
+                ))
+                .build();
+
+        PostgresEventProcessor processor = new PostgresEventProcessor(config, dataSource);
+
+        List<Field<?>> fields = List.of(
+                new Field.Int32("id", dbo.id)
+        );
+
+        InsertEvent insertEvent = new InsertEvent(
+                UUID.randomUUID(),
+                "public",
+                "data_types",
+                6,
+                fields
+        );
+
+        eventually(() -> {
+            Result result = processor.consume(PostgresTransactionEvent.of("test", insertEvent));
+
+            assertEquals(Result.ok(), result);
+        });
+    }
+
+    @Test
+    public void should_handle_insert_with_update_strategy() {
+        DataTypesDbo dbo = new DataTypesDbo();
+        dbo.id = newId();
+
+        dataTypesRepository.insertDataTypes(dbo);
+
+        eventually(() -> {
+            assertNotNull(dataTypesRepository.getDataTypes(dbo.id));
+        });
+
+        ProcessorConfig config = new ProcessorConfigBuilder()
+                .configure("data_types", new ProcessorTableConfig(
+                        "data_types_pkey",
+                        InsertConflictStrategy.UPDATE
+                ))
+                .build();
+
+        PostgresEventProcessor processor = new PostgresEventProcessor(config, dataSource);
+
+        List<Field<?>> fields = List.of(
+                new Field.Int32("id", dbo.id),
+                new Field.Text("text_field", "hello"),
+                new Field.Boolean("bool_field", true)
+        );
+
+        InsertEvent insertEvent = new InsertEvent(
+                UUID.randomUUID(),
+                "public",
+                "data_types",
+                6,
+                fields
+        );
+
+        eventually(() -> {
+            Result result = processor.consume(PostgresTransactionEvent.of("test", insertEvent));
+
+            assertEquals(Result.ok(), result);
+
+            DataTypesDbo updatedDbo = dataTypesRepository.getDataTypes(dbo.id).get();
+            assertEquals("hello", updatedDbo.text_field);
+            assertTrue(updatedDbo.bool_field);
+        });
+    }
+
 
     @Test
     public void should_handle_update_event() {

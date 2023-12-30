@@ -1,17 +1,17 @@
 package com.github.alexgaard.mirror.postgres.collector.config;
 
-public class TableConfig {
+public class CollectorTableConfig {
 
     // The name of the preferred constraint to use if multiple constraints
     // are available or if only constraints with one or more nullable fields are available
     public final String preferredConstraint;
 
-    public TableConfig(String preferredConstraint) {
+    public CollectorTableConfig(String preferredConstraint) {
         this.preferredConstraint = preferredConstraint;
     }
 
-    public TableConfig copy() {
-        return new TableConfig(preferredConstraint);
+    public CollectorTableConfig copy() {
+        return new CollectorTableConfig(preferredConstraint);
     }
 
     @Override
@@ -19,7 +19,7 @@ public class TableConfig {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        TableConfig that = (TableConfig) o;
+        CollectorTableConfig that = (CollectorTableConfig) o;
 
         return preferredConstraint.equals(that.preferredConstraint);
     }
@@ -31,7 +31,7 @@ public class TableConfig {
 
     @Override
     public String toString() {
-        return "TableConfig{" +
+        return "CollectorTableConfig{" +
                 "preferredConstraint='" + preferredConstraint + '\'' +
                 '}';
     }

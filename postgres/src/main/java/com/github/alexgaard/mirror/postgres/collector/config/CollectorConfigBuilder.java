@@ -24,7 +24,7 @@ public class CollectorConfigBuilder {
 
     private final DataSource dataSource;
 
-    private CollectorConfigBuilder(DataSource dataSource) {
+    public CollectorConfigBuilder(DataSource dataSource) {
         this.dataSource = dataSource;
     }
 
@@ -92,8 +92,8 @@ public class CollectorConfigBuilder {
         return this;
     }
 
-    public CollectorConfigBuilder configure(String schema, String tableName, TableConfig tableConfig) {
-        config.tableConfig.put(tableFullName(schema, tableName), tableConfig);
+    public CollectorConfigBuilder configure(String schema, String tableName, CollectorTableConfig collectorTableConfig) {
+        config.tableConfig.put(tableFullName(schema, tableName), collectorTableConfig);
         return this;
     }
 
@@ -105,10 +105,6 @@ public class CollectorConfigBuilder {
         }
 
         return newConfig;
-    }
-
-    public static CollectorConfigBuilder with(DataSource dataSource) {
-        return new CollectorConfigBuilder(dataSource);
     }
 
     private static List<String> getAllTables(DataSource dataSource, String schema) {

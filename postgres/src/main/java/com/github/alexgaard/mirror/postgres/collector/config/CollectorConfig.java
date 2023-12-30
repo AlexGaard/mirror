@@ -6,7 +6,7 @@ import java.util.*;
 public class CollectorConfig {
 
     // Key = "<schema>.<table_name>"
-    final Map<String, TableConfig> tableConfig;
+    final Map<String, CollectorTableConfig> tableConfig;
 
     final Map<String, Set<String>> schemaAndIncludedTables;
 
@@ -25,7 +25,7 @@ public class CollectorConfig {
     Duration maxBackoff = Duration.ofSeconds(10);
 
     public CollectorConfig(
-            Map<String, TableConfig> tableConfig,
+            Map<String, CollectorTableConfig> tableConfig,
             Map<String, Set<String>> schemaAndIncludedTables,
             String sourceName,
             String replicationSlotName,
@@ -54,7 +54,7 @@ public class CollectorConfig {
         this.publicationName = publicationName;
     }
 
-    public Map<String, TableConfig> getTableConfig() {
+    public Map<String, CollectorTableConfig> getTableConfig() {
         return tableConfig;
     }
 
@@ -91,8 +91,8 @@ public class CollectorConfig {
     }
 
     public CollectorConfig copy() {
-        Map<String, TableConfig> tableConfigCopy = new HashMap<>();
-        tableConfig.forEach((k, v) -> tableConfig.put(k, v.copy()));
+        Map<String, CollectorTableConfig> tableConfigCopy = new HashMap<>();
+        tableConfig.forEach((k, v) -> tableConfigCopy.put(k, v.copy()));
 
         Map<String, Set<String>> schemaAndIncludedTablesCopy = new HashMap<>();
         schemaAndIncludedTables.forEach((k, v) -> schemaAndIncludedTablesCopy.put(k, new HashSet<>(v)));
