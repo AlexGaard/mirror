@@ -2,6 +2,9 @@ package com.github.alexgaard.mirror.postgres.collector;
 
 import com.github.alexgaard.mirror.common_test.*;
 import com.github.alexgaard.mirror.core.Result;
+import com.github.alexgaard.mirror.postgres.collector.config.CollectorConfig;
+import com.github.alexgaard.mirror.postgres.collector.config.CollectorConfigBuilder;
+import com.github.alexgaard.mirror.postgres.collector.config.TableConfig;
 import com.github.alexgaard.mirror.postgres.event.DeleteEvent;
 import com.github.alexgaard.mirror.postgres.event.InsertEvent;
 import com.github.alexgaard.mirror.postgres.event.PostgresTransactionEvent;
@@ -23,6 +26,7 @@ import static com.github.alexgaard.mirror.common_test.AsyncUtils.eventually;
 import static com.github.alexgaard.mirror.common_test.DbUtils.drainWalMessages;
 import static com.github.alexgaard.mirror.common_test.TestDataGenerator.newId;
 import static com.github.alexgaard.mirror.common_test.TestDataGenerator.newReplicationName;
+import static com.github.alexgaard.mirror.postgres.metadata.PgMetadata.tableFullName;
 import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.insertSkipTransactionMessage;
 
 import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.update;
@@ -42,20 +46,24 @@ public class PostgresEventCollectorTest {
 
     private static final String replicationName = newReplicationName();
 
+    private static CollectorConfig collectorConfig;
+
     @BeforeAll
     public static void setup() {
         dataTypesRepository = new DataTypesRepository(dataSource);
 
         DbUtils.initTables(dataSource);
 
-        PgReplication pgReplication = new PgReplication()
+        collectorConfig = CollectorConfigBuilder.with(dataSource)
+                .includeAll()
                 .replicationSlotName(replicationName)
                 .publicationName(replicationName)
-                .allTables();
+                .pollInterval(Duration.ofMillis(100))
+                .build();
 
-        pgReplication.setup(dataSource);
+        PgReplication.setup(dataSource, collectorConfig);
 
-        collector = new PostgresEventCollector("test", dataSource, Duration.ofMillis(100), pgReplication);
+        collector = new PostgresEventCollector(collectorConfig, dataSource);
     }
 
     @BeforeEach
@@ -500,10 +508,9 @@ public class PostgresEventCollectorTest {
 
         drainWalMessages(dataSource, replicationName, replicationName);
 
-        collector.setTableReplicationConfig(
-                "public",
-                "table_with_multiple_unique",
-                new TableReplicationConfig("table_with_multiple_unique_field_2_key")
+        collectorConfig.getTableConfig().put(
+                tableFullName("public", "table_with_multiple_unique"),
+                new TableConfig("table_with_multiple_unique_field_2_key")
         );
 
         collector.start();
@@ -527,9 +534,8 @@ public class PostgresEventCollectorTest {
             assertEquals(4, event.fields.get(0).value);
         });
 
-        collector.setTableReplicationConfig(
-                "public",
-                "table_with_multiple_unique",
+        collectorConfig.getTableConfig().put(
+                tableFullName("public", "table_with_multiple_unique"),
                 null
         );
     }
@@ -625,10 +631,9 @@ public class PostgresEventCollectorTest {
 
         drainWalMessages(dataSource, replicationName, replicationName);
 
-        collector.setTableReplicationConfig(
-                "public",
-                "table_with_multiple_unique",
-                new TableReplicationConfig("table_with_multiple_unique_field_2_key")
+        collectorConfig.getTableConfig().put(
+                tableFullName("public", "table_with_multiple_unique"),
+                new TableConfig("table_with_multiple_unique_field_2_key")
         );
 
         collector.start();
@@ -648,11 +653,11 @@ public class PostgresEventCollectorTest {
             assertEquals("hello5", event.identifierFields.get(0).value);
         });
 
-        collector.setTableReplicationConfig(
-                "public",
-                "table_with_multiple_unique",
+        collectorConfig.getTableConfig().put(
+                tableFullName("public", "table_with_multiple_unique"),
                 null
         );
+
     }
 
     @Test

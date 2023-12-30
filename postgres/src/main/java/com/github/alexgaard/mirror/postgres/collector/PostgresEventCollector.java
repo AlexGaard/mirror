@@ -3,6 +3,8 @@ package com.github.alexgaard.mirror.postgres.collector;
 import com.github.alexgaard.mirror.core.EventSink;
 import com.github.alexgaard.mirror.core.EventSource;
 import com.github.alexgaard.mirror.core.Result;
+import com.github.alexgaard.mirror.postgres.collector.config.CollectorConfig;
+import com.github.alexgaard.mirror.postgres.collector.config.TableConfig;
 import com.github.alexgaard.mirror.postgres.collector.message.*;
 import com.github.alexgaard.mirror.postgres.event.*;
 import com.github.alexgaard.mirror.postgres.metadata.ColumnMetadata;
@@ -37,51 +39,32 @@ public class PostgresEventCollector implements EventSource {
 
     private final static Logger log = LoggerFactory.getLogger(PostgresEventCollector.class);
 
-    private final String replicationSlotName;
-
-    private final String publicationName;
-
-    private final int maxChangesPrPoll = 500;
-
-    private final String sourceName;
-
     private final Map<Integer, PgDataType> pgDataTypes = new HashMap<>();
 
     private final Map<String, List<ColumnMetadata>> tableColumnMetadata = new HashMap<>();
 
     private final Map<String, List<ConstraintMetadata>> tableConstraintMetadata = new HashMap<>();
 
-    private final Map<String, TableReplicationConfig> tableReplicationConfig = new HashMap<>();
+    private final CollectorConfig config;
 
     private final DataSource dataSource;
-
-    private final PgReplication pgReplication;
 
     private final BackgroundJob backgroundJob;
 
     private EventSink eventSink;
 
     public PostgresEventCollector(
-            String sourceName,
-            DataSource dataSource,
-            Duration pollInterval,
-            PgReplication pgReplication
+            CollectorConfig config,
+            DataSource dataSource
     ) {
-        this.sourceName = sourceName;
+        this.config = config;
         this.dataSource = dataSource;
-        this.pgReplication = pgReplication;
-        this.replicationSlotName = pgReplication.getReplicationSlotName();
-        this.publicationName = pgReplication.getPublicationName();
         this.backgroundJob = new BackgroundJob(
                 this.getClass().getSimpleName(),
-                pollInterval,
-                Duration.ofSeconds(1),
-                Duration.ofSeconds(10)
+                config.getPollInterval(),
+                config.getBackoffIncrease(),
+                config.getMaxBackoff()
         );
-    }
-
-    public void setTableReplicationConfig(String schema, String table, TableReplicationConfig config) {
-        tableReplicationConfig.put(tableFullName(schema, table), config);
     }
 
     @Override
@@ -107,14 +90,10 @@ public class PostgresEventCollector implements EventSource {
 
         pgDataTypes.putAll(PgMetadata.getAllPgDataTypes(dataSource));
 
-        pgReplication.getSchemas().forEach(schema -> {
+        config.getSchemaAndIncludedTables().keySet().forEach(schema -> {
             tableColumnMetadata.putAll(PgMetadata.getAllTableColumns(dataSource, schema));
             tableConstraintMetadata.putAll(PgMetadata.getAllTableConstraints(dataSource, schema));
         });
-
-        log.debug("Initializing postgres replication");
-
-        pgReplication.setup(dataSource);
 
         log.debug("Starting event collector");
 
@@ -164,7 +143,7 @@ public class PostgresEventCollector implements EventSource {
                             .orElseThrow();
 
                     PostgresTransactionEvent pgTransaction = PostgresTransactionEvent.of(
-                            sourceName,
+                            config.getSourceName(),
                             transactionEvents,
                             PgTimestamp.toOffsetDateTime(commit.commitTimestamp)
                     );
@@ -273,7 +252,7 @@ public class PostgresEventCollector implements EventSource {
 
             List<ConstraintMetadata> constraints = ofNullable(tableConstraintMetadata.get(fullName)).orElseGet(Collections::emptyList);
             List<ColumnMetadata> columns = tableColumnMetadata.get(fullName);
-            Optional<TableReplicationConfig> replicationConfig = ofNullable(tableReplicationConfig.get(fullName));
+            Optional<TableConfig> replicationConfig = ofNullable(config.getTableConfig().get(fullName));
 
             Optional<ConstraintMetadata> identifyingConstraint = getPreferredConstraint(replicationConfig, constraints)
                     .or(() -> findIdentifyingConstraint(constraints, columns));
@@ -341,7 +320,7 @@ public class PostgresEventCollector implements EventSource {
         }
     }
 
-    private static Optional<ConstraintMetadata> getPreferredConstraint(Optional<TableReplicationConfig> maybeConfig, List<ConstraintMetadata> constraints) {
+    private static Optional<ConstraintMetadata> getPreferredConstraint(Optional<TableConfig> maybeConfig, List<ConstraintMetadata> constraints) {
         return maybeConfig.map(config -> {
             if (config.preferredConstraint == null) {
                 return null;
@@ -404,9 +383,9 @@ public class PostgresEventCollector implements EventSource {
             obj.setType("pg_lsn");
             obj.setValue(upToLsn);
 
-            statement.setString(1, replicationSlotName);
+            statement.setString(1, config.getReplicationSlotName());
             statement.setObject(2, obj);
-            statement.setString(3, publicationName);
+            statement.setString(3, config.getPublicationName());
             statement.executeQuery();
         });
     }
@@ -415,9 +394,9 @@ public class PostgresEventCollector implements EventSource {
         String sql = "SELECT * FROM pg_logical_slot_peek_binary_changes(?, NULL, ?, 'messages', 'true', 'proto_version', '1', 'publication_names', ?)";
 
         return query(connection, sql, (statement) -> {
-            statement.setString(1, replicationSlotName);
-            statement.setInt(2, maxChangesPrPoll);
-            statement.setString(3, publicationName);
+            statement.setString(1, config.getReplicationSlotName());
+            statement.setInt(2, config.getMaxChangesPrPoll());
+            statement.setString(3, config.getPublicationName());
 
             ResultSet resultSet = statement.executeQuery();
 

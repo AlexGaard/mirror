@@ -1,6 +1,6 @@
 package com.github.alexgaard.mirror.postgres.collector;
 
-import org.postgresql.util.PGobject;
+import com.github.alexgaard.mirror.postgres.collector.config.CollectorConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,76 +18,21 @@ import static java.lang.String.format;
 
 public class PgReplication {
 
-    private final static String DEFAULT_SCHEMA = "public";
+    private final static Logger log = LoggerFactory.getLogger(PgReplication.class);
 
-    private final Logger log = LoggerFactory.getLogger(PgReplication.class);
-
-    private final Map<String, Set<String>> schemaAndTableExclusions = new HashMap<>();
-
-    private String replicationSlotName = "mirror";
-
-    private String publicationName = "mirror";
-
-    public PgReplication publicationName(String publicationName) {
-        this.publicationName = publicationName;
-        return this;
-    }
-
-    public PgReplication replicationSlotName(String replicationSlotName) {
-        this.replicationSlotName = replicationSlotName;
-        return this;
-    }
-
-    public PgReplication allTables() {
-        return allTables(DEFAULT_SCHEMA);
-    }
-
-    public PgReplication allTables(String schema) {
-        schemaAndTableExclusions.put(schema, new HashSet<>());
-        return this;
-    }
-
-    public PgReplication exclude(String tableName) {
-        return exclude(DEFAULT_SCHEMA, tableName);
-    }
-
-    public PgReplication exclude(String schema, String tableName) {
-        Set<String> exclusions = schemaAndTableExclusions.computeIfAbsent(schema, (s) -> new HashSet<>());
-        exclusions.add(tableName);
-        return this;
-    }
-
-    public String getReplicationSlotName() {
-        return replicationSlotName;
-    }
-
-    public String getPublicationName() {
-        return publicationName;
-    }
-
-    public Set<String> getSchemas() {
-        return schemaAndTableExclusions.keySet();
-    }
-
-    public synchronized void setup(DataSource dataSource) {
-        if (!hasReplicationSlot(dataSource, replicationSlotName)) {
-            log.info("Creating new replication slot {}", replicationSlotName);
-            createReplicationSlot(dataSource, replicationSlotName);
+    public static void setup(DataSource dataSource, CollectorConfig config) {
+        if (!hasReplicationSlot(dataSource, config.getReplicationSlotName())) {
+            log.info("Creating new replication slot {}", config.getReplicationSlotName());
+            createReplicationSlot(dataSource, config.getReplicationSlotName());
         }
 
-        if (!hasPublication(dataSource, publicationName)) {
-            log.info("Creating new publication {}", publicationName);
-            createPublication(dataSource, publicationName);
+        if (!hasPublication(dataSource, config.getPublicationName())) {
+            log.info("Creating new publication {}", config.getPublicationName());
+            createPublication(dataSource, config.getPublicationName());
         }
 
-        schemaAndTableExclusions.forEach((schema, exclusions) -> {
-            List<String> includedTables = getAllTables(dataSource, schema)
-                    .stream()
-                    .filter(t -> !exclusions.contains(t))
-                    .collect(Collectors.toList());
-
-
-            List<String> publicationTables = getTablesForPublication(dataSource, publicationName, schema);
+        config.getSchemaAndIncludedTables().forEach((schema, includedTables) -> {
+            List<String> publicationTables = getTablesForPublication(dataSource, config.getPublicationName(), schema);
 
             List<String> tablesToAddToPublication = includedTables
                     .stream()
@@ -102,13 +47,13 @@ public class PgReplication {
             List<String> tablesWithoutFullReplicaIdentity = getTablesWithoutFullReplicaIdentity(dataSource, schema, includedTables);
 
             tablesToAddToPublication.forEach(table -> {
-                log.info("Adding new table {}.{} to publication {}", schema, table, publicationName);
-                addTableToPublication(dataSource, publicationName, schema, table);
+                log.info("Adding new table {}.{} to publication {}", schema, table, config.getPublicationName());
+                addTableToPublication(dataSource, config.getPublicationName(), schema, table);
             });
 
             tablesToRemoveFromPublication.forEach(table -> {
-                log.info("Removing table {}.{} from publication {}", schema, table, publicationName);
-                removeTableFromPublication(dataSource, publicationName, schema, table);
+                log.info("Removing table {}.{} from publication {}", schema, table, config.getPublicationName());
+                removeTableFromPublication(dataSource, config.getPublicationName(), schema, table);
             });
 
             tablesWithoutFullReplicaIdentity.forEach(table -> {
@@ -157,18 +102,6 @@ public class PgReplication {
         update(dataSource, sql);
     }
 
-    private static List<String> getAllTables(DataSource dataSource, String schema) {
-        String sql = "SELECT table_name FROM information_schema.tables WHERE table_schema = ? and table_type = 'BASE TABLE'";
-
-        return query(dataSource, sql, (statement) -> {
-            statement.setString(1, schema);
-
-            ResultSet resultSet = statement.executeQuery();
-
-            return resultList(resultSet, (rs) -> rs.getString(1));
-        });
-    }
-
     private static List<String> getTablesForPublication(DataSource dataSource, String publicationName, String schema) {
         String sql = "select tablename from pg_publication_tables WHERE pubname = ? AND schemaname = ?";
 
@@ -182,7 +115,7 @@ public class PgReplication {
         });
     }
 
-    private static List<String> getTablesWithoutFullReplicaIdentity(DataSource dataSource, String schema, List<String> tables) {
+    private static List<String> getTablesWithoutFullReplicaIdentity(DataSource dataSource, String schema, Collection<String> tables) {
         String tablesSql = tables.stream().map(table -> format("'%s.%s'::regclass", schema, table))
                 .collect(Collectors.joining(", "));
 

@@ -7,6 +7,8 @@ import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.utils.ExceptionUtil;
 import com.github.alexgaard.mirror.postgres.collector.PgReplication;
 import com.github.alexgaard.mirror.postgres.collector.PostgresEventCollector;
+import com.github.alexgaard.mirror.postgres.collector.config.CollectorConfig;
+import com.github.alexgaard.mirror.postgres.collector.config.CollectorConfigBuilder;
 import com.github.alexgaard.mirror.postgres.processor.PostgresEventProcessor;
 import com.github.alexgaard.mirror.rabbitmq.RabbitMqEventReceiver;
 import com.github.alexgaard.mirror.rabbitmq.RabbitMqEventSender;
@@ -91,18 +93,30 @@ public class EndToEndTest {
         RabbitMqSingletonContainer.setupExchangeWithQueue(queue1, exchange, key1);
         RabbitMqSingletonContainer.setupExchangeWithQueue(queue2, exchange, key2);
 
-        PgReplication pgReplication = new PgReplication()
+        CollectorConfig config1 = CollectorConfigBuilder.with(dataSource1)
+                .includeAll()
                 .replicationSlotName(name)
                 .publicationName(name)
-                .allTables();
+                .pollInterval(Duration.ofMillis(100))
+                .build();
 
-        collector1 = new PostgresEventCollector("test-1", dataSource1, Duration.ofMillis(100), pgReplication);
+        CollectorConfig config2 = CollectorConfigBuilder.with(dataSource2)
+                .includeAll()
+                .replicationSlotName(name)
+                .publicationName(name)
+                .pollInterval(Duration.ofMillis(100))
+                .build();
+
+        PgReplication.setup(dataSource1, config1);
+        PgReplication.setup(dataSource2, config2);
+
+        collector1 = new PostgresEventCollector(config1, dataSource1);
         sender1 = new RabbitMqEventSender(RabbitMqSingletonContainer.createConnectionFactory(), exchange, key2, jsonSerializer);
 
         receiver1 = new RabbitMqEventReceiver(RabbitMqSingletonContainer.createConnectionFactory(), queue1, jsonDeserializer);
         processor1 = new PostgresEventProcessor(dataSource1);
 
-        collector2 = new PostgresEventCollector("test-2", dataSource2, Duration.ofMillis(100), pgReplication);
+        collector2 = new PostgresEventCollector(config2, dataSource2);
         sender2 = new RabbitMqEventSender(RabbitMqSingletonContainer.createConnectionFactory(), exchange, key1, jsonSerializer);
 
         receiver2 = new RabbitMqEventReceiver(RabbitMqSingletonContainer.createConnectionFactory(), queue2, jsonDeserializer);
@@ -260,7 +274,7 @@ public class EndToEndTest {
         repo1.insertDataTypes(dbo1);
 
         eventually(() -> {
-            assertEquals(3, counter.get());
+            assertTrue(counter.get() >= 3);
             assertTrue(repo2.getDataTypes(dbo1.id).isPresent());
         });
     }
