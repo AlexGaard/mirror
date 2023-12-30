@@ -17,6 +17,7 @@ import java.time.*;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.github.alexgaard.mirror.common_test.AsyncUtils.eventually;
 import static com.github.alexgaard.mirror.common_test.DbUtils.drainWalMessages;
@@ -55,6 +56,12 @@ public class PostgresEventCollectorTest {
         pgReplication.setup(dataSource);
 
         collector = new PostgresEventCollector("test", dataSource, Duration.ofMillis(100), pgReplication);
+    }
+
+    @BeforeEach
+    public void setupBefore() {
+        collector.stop();
+        collectedTransactions.clear();
 
         collector.setEventSink(transaction -> {
             if (transaction instanceof PostgresTransactionEvent) {
@@ -63,12 +70,6 @@ public class PostgresEventCollectorTest {
 
             return Result.ok();
         });
-    }
-
-    @BeforeEach
-    public void setupBefore() {
-        collector.stop();
-        collectedTransactions.clear();
     }
 
     @Test
@@ -652,6 +653,30 @@ public class PostgresEventCollectorTest {
                 "table_with_multiple_unique",
                 null
         );
+    }
+
+    @Test
+    public void should_retry_until_event_is_consumed() {
+        drainWalMessages(dataSource, replicationName, replicationName);
+
+        DataTypesDbo dbo = new DataTypesDbo();
+        dbo.id = newId();
+
+        dataTypesRepository.insertDataTypes(dbo);
+
+        AtomicInteger counter = new AtomicInteger();
+
+        collector.setEventSink(event -> {
+            if (counter.incrementAndGet() < 3) {
+                return Result.error(new RuntimeException());
+            }
+
+            return Result.ok();
+        });
+
+        collector.start();
+
+        eventually(() -> assertEquals(3, counter.get()));
     }
 
 }

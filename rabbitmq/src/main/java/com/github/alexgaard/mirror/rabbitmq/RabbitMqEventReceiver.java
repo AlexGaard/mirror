@@ -96,7 +96,7 @@ public class RabbitMqEventReceiver implements EventSource {
             if (result.isOk()) {
                 channel.basicAck(tag, false);
             } else {
-                log.error("Failed to process transaction", result.getError().get());
+                log.error("Failed to process event", result.getError().get());
                 channel.basicNack(tag, false, true);
             }
         };

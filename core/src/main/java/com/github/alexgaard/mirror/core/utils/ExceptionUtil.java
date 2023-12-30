@@ -8,8 +8,6 @@ import java.util.function.Supplier;
 
 public class ExceptionUtil {
 
-    private final static Logger log = LoggerFactory.getLogger(ExceptionUtil.class);
-
     /**
      * Uses template type erasure to trick the compiler into removing checking of exception. The compiler
      * treats E as RuntimeException, meaning that softenException doesn't need to declare it,
@@ -22,19 +20,15 @@ public class ExceptionUtil {
         throw (T) t;
     }
 
-    public static Runnable safeRunnable(UnsafeRunnable runnable) {
-        return () -> {
-            try {
-                runnable.run();
-            } catch (Exception e) {
-                log.error("Caught exception from runnable", e);
-            }
-        };
-    }
-
     public static Result runWithResult(UnsafeSupplier<Result> unsafeSupplier) {
         try {
-            return unsafeSupplier.get();
+            Result result = unsafeSupplier.get();
+
+            if (result == null) {
+                return Result.error(new IllegalStateException("Result was null"));
+            }
+
+            return result;
         } catch (Exception e) {
             return Result.error(e);
         }

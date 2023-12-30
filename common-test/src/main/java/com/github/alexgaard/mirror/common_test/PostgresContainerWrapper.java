@@ -13,7 +13,7 @@ public class PostgresContainerWrapper {
     private DataSource dataSource;
 
     public PostgresContainerWrapper() {
-        container = new PostgreSQLContainer<>("postgres:16.0-alpine3.18")
+        container = new PostgreSQLContainer<>("postgres:16-alpine3.18")
                 .withCommand("postgres", "-c", "wal_level=logical");
     }
 

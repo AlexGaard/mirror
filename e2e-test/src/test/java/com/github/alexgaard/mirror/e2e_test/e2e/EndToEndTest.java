@@ -1,21 +1,23 @@
 package com.github.alexgaard.mirror.e2e_test.e2e;
 
 import com.github.alexgaard.mirror.common_test.*;
+import com.github.alexgaard.mirror.core.Event;
+import com.github.alexgaard.mirror.core.EventSink;
+import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.utils.ExceptionUtil;
 import com.github.alexgaard.mirror.postgres.collector.PgReplication;
 import com.github.alexgaard.mirror.postgres.collector.PostgresEventCollector;
 import com.github.alexgaard.mirror.postgres.processor.PostgresEventProcessor;
 import com.github.alexgaard.mirror.rabbitmq.RabbitMqEventReceiver;
 import com.github.alexgaard.mirror.rabbitmq.RabbitMqEventSender;
-import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
+import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 
 import javax.sql.DataSource;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.github.alexgaard.mirror.common_test.AsyncUtils.eventually;
 import static com.github.alexgaard.mirror.common_test.TestDataGenerator.*;
@@ -120,6 +122,15 @@ public class EndToEndTest {
 
         receiver2.setEventSink(processor2);
         receiver2.start();
+    }
+
+    @AfterEach
+    public void stop() {
+        collector1.stop();
+        collector2.stop();
+
+        receiver1.stop();
+        receiver2.stop();
     }
 
     @AfterAll
@@ -230,5 +241,29 @@ public class EndToEndTest {
             assertEquals(events, count);
         });
     }
+
+    @Test
+    public void should_retry_until_event_is_consumed() {
+        DataTypesDbo dbo1 = new DataTypesDbo();
+        dbo1.id = newId();
+
+        AtomicInteger counter = new AtomicInteger();
+
+        receiver2.setEventSink(event -> {
+            if (counter.incrementAndGet() < 3) {
+                return Result.error(new RuntimeException("Not ready"));
+            }
+
+            return processor2.consume(event);
+        });
+
+        repo1.insertDataTypes(dbo1);
+
+        eventually(() -> {
+            assertEquals(3, counter.get());
+            assertTrue(repo2.getDataTypes(dbo1.id).isPresent());
+        });
+    }
+
 
 }

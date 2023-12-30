@@ -3,6 +3,7 @@ package com.github.alexgaard.mirror.postgres.utils;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 
 public class PgTimestamp {
 
@@ -11,8 +12,7 @@ public class PgTimestamp {
         long timestampMs = pgTimestamp / 1000;
         long micros = pgTimestamp % 1000;
 
-        // Assumes that the database is in the same zone as the application
-        return OffsetDateTime.ofInstant(Instant.ofEpochMilli(timestampMs), ZoneId.systemDefault())
+        return OffsetDateTime.ofInstant(Instant.ofEpochMilli(timestampMs), ZoneOffset.UTC)
                 .plusYears(30)
                 .plusNanos(micros * 1000);
     }
