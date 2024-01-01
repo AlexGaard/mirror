@@ -171,23 +171,54 @@ public class FieldMapper {
     }
 
 
-    private static List<String> splitPostgresArray(String pgArray) {
+    public static List<String> splitPostgresArray(String pgArray) {
         if (!pgArray.startsWith("{") || !pgArray.endsWith("}")) {
             throw new IllegalArgumentException(pgArray + " is not a valid postgres array");
         }
 
-        String[] values = pgArray.substring(1, pgArray.length() - 1).split(",");
+        List<String> valueList = new ArrayList<>();
+        int end = pgArray.length() - 1;
+        int startOfValIdx =  1;
+        boolean isInsideStr = false;
+        boolean isStringEscaped = false;
 
-        List<String> valueList = new ArrayList<>(values.length);
+        for (int i = startOfValIdx; i < end; i++) {
+            char c = pgArray.charAt(i);
 
-        for (String value : values) {
-            if (value.startsWith("\"") && value.endsWith("\"")) {
-                valueList.add(value.substring(1, value.length() - 1));
-            } else {
-                valueList.add(value);
+            if (c == '"' && (pgArray.charAt(i - 1) != '\\') ) {
+                isInsideStr = !isInsideStr;
+
+                if (isInsideStr) {
+                    isStringEscaped = true;
+                }
+            }
+
+            if (c == ',' && !isInsideStr) {
+                String value = isStringEscaped
+                        ? pgArray.substring(startOfValIdx + 1, i - 1)
+                        : pgArray.substring(startOfValIdx, i);
+
+                valueList.add(replaceEscapedQuote(value));
+
+                isStringEscaped = false;
+                startOfValIdx = i + 1;
+            }
+
+            if (i + 1 >= end) {
+                String value = isStringEscaped
+                        ? pgArray.substring(startOfValIdx + 1, end - 1)
+                        : pgArray.substring(startOfValIdx, end);
+
+                valueList.add(replaceEscapedQuote(value));
             }
         }
 
         return valueList;
     }
+
+    // Replaces \" with "
+    private static String replaceEscapedQuote(String str) {
+        return str.replaceAll("\\\\\"", "\"");
+    }
+
 }

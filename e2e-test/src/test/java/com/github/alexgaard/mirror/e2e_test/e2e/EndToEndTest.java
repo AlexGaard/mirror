@@ -226,8 +226,8 @@ public class EndToEndTest {
         dbo1.float4_array_field = new Float[]{5.2f};
         dbo1.float8_array_field = new Double[]{5.4};
         dbo1.uuid_array_field = new UUID[]{UUID.randomUUID()};
-        dbo1.varchar_array_field = new String[]{"hello"};
-        dbo1.text_array_field = new String[]{"world"};
+        dbo1.varchar_array_field = new String[]{"hello\", 'world", "test"};
+        dbo1.text_array_field = new String[]{"hello, world"};
         dbo1.bool_array_field = new Boolean[]{true, false};
         dbo1.char_array_field = new Character[]{'1', '2'};
         dbo1.date_array_field = new LocalDate[]{LocalDate.now()};
