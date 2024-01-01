@@ -6,8 +6,8 @@ import com.github.alexgaard.mirror.postgres.utils.ArrayUtils;
 import javax.sql.DataSource;
 import java.sql.*;
 import java.util.*;
-import java.util.stream.Collectors;
 
+import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.softenException;
 import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.*;
 
 public class PgMetadata {
@@ -24,14 +24,14 @@ public class PgMetadata {
                 ResultSet resultSet = statement.executeQuery("select oid, typname from pg_type");
 
                 while (resultSet.next()) {
-                    Integer oid = resultSet.getInt(1);
-                    String typename = resultSet.getString(2);
+                    Integer oid = resultSet.getInt("oid");
+                    String typename = resultSet.getString("typname");
 
                     pgDataTypes.put(oid, new PgDataType(typename));
                 }
             }
         } catch (SQLException e) {
-            throw new RuntimeException(e);
+            throw softenException(e);
         }
 
         return pgDataTypes;

@@ -40,6 +40,9 @@ public class EndToEndTest {
     private DataTypesRepository repo1;
     private DataTypesRepository repo2;
 
+    private DataArrayTypesRepository arrayRepo1;
+    private DataArrayTypesRepository arrayRepo2;
+
     private String name;
 
     private String exchange;
@@ -62,7 +65,7 @@ public class EndToEndTest {
     private RabbitMqEventReceiver receiver2;
     private PostgresEventProcessor processor2;
 
-    
+
     @BeforeAll
     public static void init() {
         container1.start();
@@ -74,11 +77,14 @@ public class EndToEndTest {
         DbUtils.initTables(dataSource1);
         DbUtils.initTables(dataSource2);
     }
-    
+
     @BeforeEach
     public void setup() {
         repo1 = new DataTypesRepository(dataSource1);
         repo2 = new DataTypesRepository(dataSource2);
+
+        arrayRepo1 = new DataArrayTypesRepository(dataSource1);
+        arrayRepo2 = new DataArrayTypesRepository(dataSource2);
 
         name = newReplicationName();
 
@@ -207,6 +213,33 @@ public class EndToEndTest {
         eventually(() -> {
             DataTypesDbo dboFrom1 = repo1.getDataTypes(dbo2.id).orElseThrow();
             assertEquals(dbo2, dboFrom1);
+        });
+    }
+
+    @Test
+    public void should_handle_array_data_types() {
+        DataArrayTypesDbo dbo1 = new DataArrayTypesDbo();
+        dbo1.id = newId();
+        dbo1.int2_array_field = new Short[]{1};
+        dbo1.int4_array_field = new Integer[]{2};
+        dbo1.int8_array_field = new Long[]{3L};
+        dbo1.float4_array_field = new Float[]{5.2f};
+        dbo1.float8_array_field = new Double[]{5.4};
+        dbo1.uuid_array_field = new UUID[]{UUID.randomUUID()};
+        dbo1.varchar_array_field = new String[]{"hello"};
+        dbo1.text_array_field = new String[]{"world"};
+        dbo1.bool_array_field = new Boolean[]{true, false};
+        dbo1.char_array_field = new Character[]{'1', '2'};
+        dbo1.date_array_field = new LocalDate[]{LocalDate.now()};
+        dbo1.time_array_field = new LocalTime[]{LocalTime.now().truncatedTo(ChronoUnit.SECONDS)};
+        dbo1.timestamp_array_field = new LocalDateTime[]{LocalDateTime.now().truncatedTo(ChronoUnit.MILLIS)};
+        dbo1.timestamptz_array_field = new OffsetDateTime[]{OffsetDateTime.now().truncatedTo(ChronoUnit.MILLIS)};
+
+        arrayRepo1.insertDataTypes(dbo1);
+
+        eventually(() -> {
+            DataArrayTypesDbo dboFrom2 = arrayRepo2.getDataArrayTypes(dbo1.id).orElseThrow();
+            assertEquals(dbo1, dboFrom2);
         });
     }
 

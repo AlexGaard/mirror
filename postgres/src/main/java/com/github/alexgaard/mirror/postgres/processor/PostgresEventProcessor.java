@@ -12,9 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,7 +21,6 @@ import java.util.stream.Collectors;
 
 import static com.github.alexgaard.mirror.postgres.metadata.PgMetadata.tableFullName;
 import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.insertSkipTransactionMessage;
-import static com.github.alexgaard.mirror.postgres.utils.SqlFieldType.sqlFieldType;
 import static java.lang.String.format;
 
 public class PostgresEventProcessor implements EventSink {
@@ -111,7 +108,7 @@ public class PostgresEventProcessor implements EventSink {
             int paramCounter = 1;
 
             for (Field<?> field : insert.fields) {
-                setParameter(statement, paramCounter++, field);
+                setParameter(connection, statement, paramCounter++, field);
             }
 
             statement.executeUpdate();
@@ -129,13 +126,13 @@ public class PostgresEventProcessor implements EventSink {
             int paramCounter = 1;
 
             for (Field<?> field : update.fields) {
-                setParameter(statement, paramCounter++, field);
+                setParameter(connection, statement, paramCounter++, field);
             }
 
             for (Field<?> field : update.identifierFields) {
                 // Fields that have null use "is null" and does not have a template parameter
                 if (field.value != null) {
-                    setParameter(statement, paramCounter++, field);
+                    setParameter(connection, statement, paramCounter++, field);
                 }
             }
 
@@ -154,7 +151,7 @@ public class PostgresEventProcessor implements EventSink {
             for (Field<?> field : delete.identifierFields) {
                 // Fields that have null use "is null" and does not have a template parameter
                 if (field.value != null) {
-                    setParameter(statement, paramCounter++, field);
+                    setParameter(connection, statement, paramCounter++, field);
                 }
             }
 
@@ -202,7 +199,7 @@ public class PostgresEventProcessor implements EventSink {
                     String fieldCast;
                     String valueCast;
 
-                    if (Field.Type.JSON.equals(f.type) || Field.Type.JSONB.equals(f.type)) {
+                    if (FieldType.JSON.equals(f.type) || FieldType.JSONB.equals(f.type)) {
                         fieldCast = "::jsonb";
                         valueCast = "::jsonb";
                     } else {
@@ -233,12 +230,18 @@ public class PostgresEventProcessor implements EventSink {
         }
     }
 
-    private static void setParameter(PreparedStatement statement, int parameterIdx, Field<?> field) throws SQLException {
-        if (Field.Type.BYTES.equals(field.type)) {
+    private static void setParameter(Connection connection, PreparedStatement statement, int parameterIdx, Field<?> field) throws SQLException {
+        if (FieldType.BYTES.equals(field.type)) {
             statement.setBytes(parameterIdx, (byte[]) field.value);
         } else {
-            int sqlType = sqlFieldType(field);
-            statement.setObject(parameterIdx, field.value, sqlType);
+            int sqlType = field.toSqlFieldType();
+
+            if (sqlType == Types.ARRAY) {
+                Array array = connection.createArrayOf(field.type.toBasePgType(), ((List<?>) field.value).toArray());
+                statement.setArray(parameterIdx, array);
+            } else {
+                statement.setObject(parameterIdx, field.value, sqlType);
+            }
         }
     }
 

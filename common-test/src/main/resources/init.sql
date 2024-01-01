@@ -57,3 +57,24 @@ create table if not exists data_types
     timestamp_field   timestamp,
     timestamptz_field timestamp with time zone
 );
+
+create table if not exists data_array_types
+(
+    id                serial primary key,
+    int2_array_field        int2[],
+    int4_array_field        int4[],
+    int8_array_field        int8[],
+    float4_array_field      float4[],
+    float8_array_field      float8[],
+    uuid_array_field        uuid[],
+    varchar_array_field     varchar[],
+    text_array_field        text[],
+    bool_array_field        bool[],
+    char_array_field        char[],
+    json_array_field        json[],
+    jsonb_array_field       jsonb[],
+    date_array_field        date[],
+    time_array_field        time[],
+    timestamp_array_field   timestamp[],
+    timestamptz_array_field timestamp with time zone[]
+);

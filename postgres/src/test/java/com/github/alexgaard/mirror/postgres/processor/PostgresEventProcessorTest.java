@@ -44,24 +44,24 @@ public class PostgresEventProcessorTest {
         int id = newId();
 
         List<Field<?>> fields = new ArrayList<>();
-        fields.add(new Field.Int32("id", id));
-        fields.add(new Field.Int16("int2_field", (short) 5));
-        fields.add(new Field.Int32("int4_field", 42));
-        fields.add(new Field.Int64("int8_field", 153L));
-        fields.add(new Field.Float("float4_field", 1.5423f));
-        fields.add(new Field.Double("float8_field", 33.3099));
-        fields.add(new Field.Uuid("uuid_field", UUID.randomUUID()));
-        fields.add(new Field.Text("varchar_field", "test"));
-        fields.add(new Field.Text("text_field", "test2"));
-        fields.add(new Field.Boolean("bool_field", true));
-        fields.add(new Field.Bytes("bytes_field", new byte[]{5, 87, 3}));
-        fields.add(new Field.Char("char_field", 's'));
-        fields.add(new Field.Json("json_field", "{\"json\": true}"));
-        fields.add(new Field.Jsonb("jsonb_field", "{\"json\": true}"));
-        fields.add(new Field.Date("date_field", LocalDate.now()));
-        fields.add(new Field.Time("time_field", LocalTime.now()));
-        fields.add(new Field.Timestamp("timestamp_field", LocalDateTime.now()));
-        fields.add(new Field.TimestampTz("timestamptz_field", OffsetDateTime.now(Clock.systemUTC())));
+        fields.add(Field.int32Field("id", id));
+        fields.add(Field.int16Field("int2_field", (short) 5));
+        fields.add(Field.int32Field("int4_field", 42));
+        fields.add(Field.int64Field("int8_field", 153L));
+        fields.add(Field.floatField("float4_field", 1.5423f));
+        fields.add(Field.doubleField("float8_field", 33.3099));
+        fields.add(Field.uuidField("uuid_field", UUID.randomUUID()));
+        fields.add(Field.textField("varchar_field", "test"));
+        fields.add(Field.textField("text_field", "test2"));
+        fields.add(Field.booleanField("bool_field", true));
+        fields.add(Field.bytesField("bytes_field", new byte[]{5, 87, 3}));
+        fields.add(Field.charField("char_field", 's'));
+        fields.add(Field.jsonField("json_field", "{\"json\": true}"));
+        fields.add(Field.jsonbField("jsonb_field", "{\"json\": true}"));
+        fields.add(Field.dateField("date_field", LocalDate.now()));
+        fields.add(Field.timeField("time_field", LocalTime.now()));
+        fields.add(Field.timestampField("timestamp_field", LocalDateTime.now()));
+        fields.add(Field.timestampTzField("timestamptz_field", OffsetDateTime.now(Clock.systemUTC())));
 
         InsertEvent insert = new InsertEvent(
                 UUID.randomUUID(),
@@ -117,7 +117,7 @@ public class PostgresEventProcessorTest {
         PostgresEventProcessor processor = new PostgresEventProcessor(config, dataSource);
 
         List<Field<?>> fields = List.of(
-                new Field.Int32("id", dbo.id)
+                Field.int32Field("id", dbo.id)
         );
 
         InsertEvent insertEvent = new InsertEvent(
@@ -156,9 +156,9 @@ public class PostgresEventProcessorTest {
         PostgresEventProcessor processor = new PostgresEventProcessor(config, dataSource);
 
         List<Field<?>> fields = List.of(
-                new Field.Int32("id", dbo.id),
-                new Field.Text("text_field", "hello"),
-                new Field.Boolean("bool_field", true)
+                Field.int32Field("id", dbo.id),
+                Field.textField("text_field", "hello"),
+                Field.booleanField("bool_field", true)
         );
 
         InsertEvent insertEvent = new InsertEvent(
@@ -195,11 +195,11 @@ public class PostgresEventProcessorTest {
         PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
 
         List<Field<?>> idFields = List.of(
-                new Field.Int32("id", dbo.id)
+                Field.int32Field("id", dbo.id)
         );
 
         List<Field<?>> updateFields = List.of(
-                new Field.Text("text_field", "hello")
+                Field.textField("text_field", "hello")
         );
 
         UpdateEvent update = new UpdateEvent(
@@ -233,12 +233,12 @@ public class PostgresEventProcessorTest {
         PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
 
         List<Field<?>> idFields = List.of(
-                new Field.Int32("id", dbo.id),
-                new Field.Boolean("bool_field", true)
+                Field.int32Field("id", dbo.id),
+                Field.booleanField("bool_field", true)
         );
 
         List<Field<?>> updateFields = List.of(
-                new Field.Text("text_field", "hello")
+                Field.textField("text_field", "hello")
         );
 
         UpdateEvent update = new UpdateEvent(
@@ -272,7 +272,7 @@ public class PostgresEventProcessorTest {
         PostgresEventProcessor processor = new PostgresEventProcessor(dataSource);
 
         List<Field<?>> fields = new ArrayList<>();
-        fields.add(new Field<>("id", Field.Type.INT32, dbo.id));
+        fields.add(new Field<>("id", FieldType.INT32, dbo.id));
 
         DeleteEvent delete = new DeleteEvent(
                 UUID.randomUUID(),
@@ -301,7 +301,7 @@ public class PostgresEventProcessorTest {
                 "public",
                 "data_types",
                 10,
-                List.of(new Field<>("id", Field.Type.INT32, id1))
+                List.of(new Field<>("id", FieldType.INT32, id1))
         );
 
         InsertEvent insert2 = new InsertEvent(
@@ -309,7 +309,7 @@ public class PostgresEventProcessorTest {
                 "public",
                 "data_types",
                 9,
-                List.of(new Field<>("id", Field.Type.INT32, id2))
+                List.of(new Field<>("id", FieldType.INT32, id2))
         );
 
         processor.consume(PostgresTransactionEvent.of("test", insert1));

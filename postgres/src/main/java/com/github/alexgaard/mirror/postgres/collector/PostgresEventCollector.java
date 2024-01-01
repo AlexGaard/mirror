@@ -366,7 +366,7 @@ public class PostgresEventCollector implements EventSource {
         for (int i = 0; i < columns.size(); i++) {
             TupleDataColumn insertCol = columns.get(i);
             RelationMessage.Column relationCol = relation.columns.get(i);
-            Field.Type type = pgDataTypes.get(relationCol.dataOid).getType();
+            FieldType type = pgDataTypes.get(relationCol.dataOid).getType();
 
             fields.add(mapTupleDataToField(relationCol.name, type, insertCol));
         }
