@@ -1,6 +1,5 @@
 package com.github.alexgaard.mirror.postgres.utils;
 
-import com.github.alexgaard.mirror.postgres.utils.DateParser;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;
@@ -13,6 +12,11 @@ public class DateParserTest {
 
     @Test
     public void should_parse_local_dates_with_variable_precision() {
+        assertEquals(
+                LocalDateTime.of(2023, 12, 18, 11, 0, 37, 0),
+                DateParser.parseVariablePrecisionLocalDateTime("2023-12-18 11:00:37")
+        );
+
         assertEquals(
                 LocalDateTime.of(2023, 12, 18, 11, 0, 37, 600000000),
                 DateParser.parseVariablePrecisionLocalDateTime("2023-12-18 11:00:37.6")
@@ -62,6 +66,11 @@ public class DateParserTest {
 
     @Test
     public void should_parse_offset_dates_with_variable_precision() {
+        assertEquals(
+                OffsetDateTime.of(2023, 12, 18, 11, 0, 37, 0, ZoneOffset.UTC),
+                DateParser.parseVariablePrecisionOffsetDateTime("2023-12-18 11:00:37Z")
+        );
+
         assertEquals(
                 OffsetDateTime.of(2023, 12, 18, 11, 0, 37, 600000000, ZoneOffset.UTC),
                 DateParser.parseVariablePrecisionOffsetDateTime("2023-12-18 11:00:37.6Z")

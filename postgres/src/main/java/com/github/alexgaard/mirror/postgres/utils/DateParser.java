@@ -8,6 +8,7 @@ import java.util.List;
 public class DateParser {
 
     private static final List<DateTimeFormatter> localDateFormatters = List.of(
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.S"),
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SS"),
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS"),
@@ -20,6 +21,7 @@ public class DateParser {
     );
 
     private static final List<DateTimeFormatter> offsetDateTimeFormatters = List.of(
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ssX"),
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SX"),
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSX"),
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSSX"),
@@ -32,38 +34,56 @@ public class DateParser {
     );
 
     public static LocalDateTime parseVariablePrecisionLocalDateTime(String localDateTimeStr) {
-        int subSecondPrecision = localDateTimeStr.length() - localDateTimeStr.lastIndexOf(".") - 1;
+        int subSecondPrecisionStart = localDateTimeStr.lastIndexOf(".");
 
-        // Clamp between 1 and 9
-        subSecondPrecision = Math.max(1, subSecondPrecision);
-        subSecondPrecision = Math.min(9, subSecondPrecision);
+        int subSecondPrecision = subSecondPrecisionStart != -1
+                ? localDateTimeStr.length() - localDateTimeStr.lastIndexOf(".") - 1
+                : 0;
 
-        DateTimeFormatter dateTimeFormatter = localDateFormatters.get(subSecondPrecision - 1);
+        subSecondPrecision = clamp(subSecondPrecision, 0, 9);
+
+        DateTimeFormatter dateTimeFormatter = localDateFormatters.get(subSecondPrecision);
 
         return LocalDateTime.parse(localDateTimeStr, dateTimeFormatter);
     }
 
     public static OffsetDateTime parseVariablePrecisionOffsetDateTime(String offsetDateTimeStr) {
-        int subSecondIdx = offsetDateTimeStr.lastIndexOf(".");
-        int subSecondEndIdx = subSecondIdx;
+        int subSecondPrecision = findSubSecondPrecisionForOffsetDateTime(offsetDateTimeStr);
 
-        for (int i = subSecondIdx + 1; i < offsetDateTimeStr.length(); i++) {
+        DateTimeFormatter dateTimeFormatter = offsetDateTimeFormatters.get(subSecondPrecision);
+
+        return OffsetDateTime.parse(offsetDateTimeStr, dateTimeFormatter);
+    }
+
+    private static int findSubSecondPrecisionForOffsetDateTime(String offsetDateTimeStr) {
+        int subSecondPrecisionStart = offsetDateTimeStr.lastIndexOf(".");
+
+        if (subSecondPrecisionStart == -1) {
+            return 0;
+        }
+
+        int subSecondEndIdx = subSecondPrecisionStart;
+
+        for (int i = subSecondPrecisionStart + 1; i < offsetDateTimeStr.length(); i++) {
             if (!Character.isDigit(offsetDateTimeStr.charAt(i))) {
                 subSecondEndIdx = i;
                 break;
             }
         }
 
-        int subSecondPrecision = subSecondEndIdx - subSecondIdx - 1;
+        int subSecondPrecision = subSecondEndIdx - subSecondPrecisionStart - 1;
 
-        // Clamp between 1 and 9
-        subSecondPrecision = Math.max(1, subSecondPrecision);
-        subSecondPrecision = Math.min(9, subSecondPrecision);
-
-        DateTimeFormatter dateTimeFormatter = offsetDateTimeFormatters.get(subSecondPrecision - 1);
-
-        return OffsetDateTime.parse(offsetDateTimeStr, dateTimeFormatter);
+        return clamp(subSecondPrecision, 0, 9);
     }
 
+    private static int clamp(int val, int from, int to) {
+        if (val >= to) {
+            return to;
+        } else if (val <= from) {
+            return from;
+        }
+
+        return val;
+    }
 
 }
