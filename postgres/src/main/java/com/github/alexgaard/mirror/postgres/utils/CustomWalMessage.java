@@ -5,7 +5,7 @@ import java.sql.PreparedStatement;
 
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.softenException;
 
-public class CustomMessage {
+public class CustomWalMessage {
 
     public static final String MESSAGE_PREFIX = "mirror";
 

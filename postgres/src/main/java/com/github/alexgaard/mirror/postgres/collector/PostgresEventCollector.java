@@ -12,7 +12,6 @@ import com.github.alexgaard.mirror.postgres.metadata.ConstraintMetadata;
 import com.github.alexgaard.mirror.postgres.metadata.PgDataType;
 import com.github.alexgaard.mirror.postgres.metadata.PgMetadata;
 import com.github.alexgaard.mirror.postgres.utils.BackgroundJob;
-import com.github.alexgaard.mirror.postgres.utils.PgTimestamp;
 import com.github.alexgaard.mirror.postgres.utils.TupleDataColumn;
 import org.postgresql.util.PGobject;
 import org.slf4j.Logger;
@@ -27,8 +26,9 @@ import java.util.stream.Collectors;
 
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.*;
 import static com.github.alexgaard.mirror.postgres.metadata.PgMetadata.tableFullName;
-import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.MESSAGE_PREFIX;
-import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.SKIP_TRANSACTION_MSG;
+import static com.github.alexgaard.mirror.postgres.utils.CustomWalMessage.MESSAGE_PREFIX;
+import static com.github.alexgaard.mirror.postgres.utils.CustomWalMessage.SKIP_TRANSACTION_MSG;
+import static com.github.alexgaard.mirror.postgres.utils.DateUtils.toOffsetDateTime;
 import static com.github.alexgaard.mirror.postgres.utils.FieldMapper.mapTupleDataToField;
 import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.*;
 import static java.lang.String.format;
@@ -141,10 +141,15 @@ public class PostgresEventCollector implements EventSource {
                             .findAny()
                             .orElseThrow();
 
+                    if (transactionEvents.isEmpty()) {
+                        lastLsn = commit.lsn;
+                        continue;
+                    }
+
                     PostgresTransactionEvent pgTransaction = PostgresTransactionEvent.of(
                             config.getSourceName(),
                             transactionEvents,
-                            PgTimestamp.toOffsetDateTime(commit.commitTimestamp)
+                            toOffsetDateTime(commit.commitTimestamp)
                     );
 
                     Result result = runWithResult(() -> eventSink.consume(pgTransaction));

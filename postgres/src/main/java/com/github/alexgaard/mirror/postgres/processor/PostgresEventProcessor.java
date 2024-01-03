@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import static com.github.alexgaard.mirror.postgres.metadata.PgMetadata.tableFullName;
-import static com.github.alexgaard.mirror.postgres.utils.CustomMessage.insertSkipTransactionMessage;
+import static com.github.alexgaard.mirror.postgres.utils.CustomWalMessage.insertSkipTransactionMessage;
 import static java.lang.String.format;
 
 public class PostgresEventProcessor implements EventSink {

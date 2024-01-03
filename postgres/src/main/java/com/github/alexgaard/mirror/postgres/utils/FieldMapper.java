@@ -53,9 +53,9 @@ public class FieldMapper {
             case TIME:
                 return Field.timeField(fieldName, LocalTime.parse((String) fieldData));
             case TIMESTAMP:
-                return Field.timestampField(fieldName, DateParser.parseVariablePrecisionLocalDateTime((String) fieldData));
+                return Field.timestampField(fieldName, DateUtils.parseVariablePrecisionLocalDateTime((String) fieldData));
             case TIMESTAMP_TZ:
-                return Field.timestampTzField(fieldName, DateParser.parseVariablePrecisionOffsetDateTime((String) fieldData));
+                return Field.timestampTzField(fieldName, DateUtils.parseVariablePrecisionOffsetDateTime((String) fieldData));
             case BYTES: {
                 String fieldDataStr = (String) fieldData;
 
@@ -152,7 +152,7 @@ public class FieldMapper {
             case TIMESTAMP_ARRAY: {
                 List<LocalDateTime> values = splitPostgresArray((String) fieldData)
                         .stream()
-                        .map(DateParser::parseVariablePrecisionLocalDateTime)
+                        .map(DateUtils::parseVariablePrecisionLocalDateTime)
                         .collect(Collectors.toList());
 
                 return Field.timestampArrayField(fieldName, values);
@@ -160,7 +160,7 @@ public class FieldMapper {
             case TIMESTAMP_TZ_ARRAY: {
                 List<OffsetDateTime> values = splitPostgresArray((String) fieldData)
                         .stream()
-                        .map(DateParser::parseVariablePrecisionOffsetDateTime)
+                        .map(DateUtils::parseVariablePrecisionOffsetDateTime)
                         .collect(Collectors.toList());
 
                 return Field.timestampTzArrayField(fieldName, values);
