@@ -1,25 +1,28 @@
 package com.github.alexgaard.mirror.e2e_test.e2e;
 
 import com.github.alexgaard.mirror.common_test.*;
-import com.github.alexgaard.mirror.core.Event;
-import com.github.alexgaard.mirror.core.EventSink;
 import com.github.alexgaard.mirror.core.Result;
-import com.github.alexgaard.mirror.core.utils.ExceptionUtil;
 import com.github.alexgaard.mirror.postgres.collector.PgReplication;
 import com.github.alexgaard.mirror.postgres.collector.PostgresEventCollector;
 import com.github.alexgaard.mirror.postgres.collector.config.CollectorConfig;
 import com.github.alexgaard.mirror.postgres.collector.config.CollectorConfigBuilder;
+import com.github.alexgaard.mirror.postgres.event.CustomMessageEvent;
 import com.github.alexgaard.mirror.postgres.processor.PostgresEventProcessor;
+import com.github.alexgaard.mirror.postgres.processor.config.ProcessorConfig;
+import com.github.alexgaard.mirror.postgres.processor.config.ProcessorConfigBuilder;
+import com.github.alexgaard.mirror.postgres.utils.CustomMessageSender;
 import com.github.alexgaard.mirror.rabbitmq.RabbitMqEventReceiver;
 import com.github.alexgaard.mirror.rabbitmq.RabbitMqEventSender;
 import org.junit.jupiter.api.*;
-import org.testcontainers.shaded.org.checkerframework.checker.units.qual.A;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.time.*;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.github.alexgaard.mirror.common_test.AsyncUtils.eventually;
 import static com.github.alexgaard.mirror.common_test.TestDataGenerator.*;
@@ -309,6 +312,38 @@ public class EndToEndTest {
         eventually(() -> {
             assertTrue(counter.get() >= 3);
             assertTrue(repo2.getDataTypes(dbo1.id).isPresent());
+        });
+    }
+
+    @Test
+    public void should_handle_custom_message() throws SQLException {
+        DataTypesDbo dbo1 = new DataTypesDbo();
+        dbo1.id = newId();
+
+        AtomicReference<CustomMessageEvent> messageRef = new AtomicReference<>();
+
+        ProcessorConfig config = new ProcessorConfigBuilder()
+                .setCustomMessageHandler((customMessageEvent, ongoingTransaction) -> {
+                    messageRef.set(customMessageEvent);
+                    return Result.ok();
+                }).build();
+
+        processor2 = new PostgresEventProcessor(config, dataSource2);
+        receiver2.setEventSink(processor2);
+
+        try (Connection connection = dataSource1.getConnection()) {
+            connection.setAutoCommit(false);
+            repo1.insertDataTypes(dbo1);
+            CustomMessageSender.insertCustomMessage(connection, "hello", "world");
+            connection.commit();
+        }
+
+        eventually(() -> {
+            DataTypesDbo dboFrom2 = repo2.getDataTypes(dbo1.id).orElseThrow();
+            assertEquals(dbo1, dboFrom2);
+
+            assertEquals("hello", messageRef.get().prefix);
+            assertEquals("world", messageRef.get().message);
         });
     }
 

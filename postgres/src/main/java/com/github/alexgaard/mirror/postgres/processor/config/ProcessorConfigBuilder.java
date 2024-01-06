@@ -9,6 +9,11 @@ public class ProcessorConfigBuilder {
 
     private final ProcessorConfig config = new ProcessorConfig();
 
+    public ProcessorConfigBuilder setCustomMessageHandler(CustomMessageHandler customMessageHandler) {
+        config.customMessageHandler = customMessageHandler;
+        return this;
+    }
+
     public ProcessorConfigBuilder configure(String tableName, ProcessorTableConfig tableConfig) {
         return configure(DEFAULT_SCHEMA, tableName, tableConfig);
     }

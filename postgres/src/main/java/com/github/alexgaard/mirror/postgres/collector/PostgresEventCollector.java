@@ -26,8 +26,8 @@ import java.util.stream.Collectors;
 
 import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.*;
 import static com.github.alexgaard.mirror.postgres.metadata.PgMetadata.tableFullName;
-import static com.github.alexgaard.mirror.postgres.utils.CustomWalMessage.MESSAGE_PREFIX;
-import static com.github.alexgaard.mirror.postgres.utils.CustomWalMessage.SKIP_TRANSACTION_MSG;
+import static com.github.alexgaard.mirror.postgres.utils.CustomMessageSender.MESSAGE_PREFIX;
+import static com.github.alexgaard.mirror.postgres.utils.CustomMessageSender.SKIP_TRANSACTION_MSG;
 import static com.github.alexgaard.mirror.postgres.utils.DateUtils.toOffsetDateTime;
 import static com.github.alexgaard.mirror.postgres.utils.FieldMapper.mapTupleDataToField;
 import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.*;
@@ -134,7 +134,7 @@ public class PostgresEventCollector implements EventSource {
                         continue;
                     }
 
-                    List<DataChangeEvent> transactionEvents = toEventTransaction(transaction, relationMessages);
+                    List<PostgresEvent> transactionEvents = toEventTransaction(transaction, relationMessages);
 
                     CommitMessage commit = (CommitMessage) transaction.stream()
                             .filter(m -> m.type.equals(Message.Type.COMMIT))
@@ -168,8 +168,8 @@ public class PostgresEventCollector implements EventSource {
         }
     }
 
-    private List<DataChangeEvent> toEventTransaction(List<Message> msgTransaction, List<RelationMessage> relationMessages) {
-        List<DataChangeEvent> event = new ArrayList<>();
+    private List<PostgresEvent> toEventTransaction(List<Message> msgTransaction, List<RelationMessage> relationMessages) {
+        List<PostgresEvent> event = new ArrayList<>();
 
         for (Message message : msgTransaction) {
             switch (message.type) {
@@ -240,6 +240,18 @@ public class PostgresEventCollector implements EventSource {
 
                     event.add(updateEvent);
                     break;
+                }
+                case MESSAGE: {
+                    CustomMessage customMessage = (CustomMessage) message;
+
+                    CustomMessageEvent messageEvent = new CustomMessageEvent(
+                            UUID.randomUUID(),
+                            customMessage.prefix,
+                            new String(customMessage.content),
+                            customMessage.xid
+                    );
+
+                    event.add(messageEvent);
                 }
             }
 
@@ -438,14 +450,14 @@ public class PostgresEventCollector implements EventSource {
 
     private static boolean shouldTransactionBeSkipped(List<Message> transactionMessages) {
         return transactionMessages.stream().anyMatch(m -> {
-            if (!(m instanceof LogicalDecodingMessage)) {
+            if (!(m instanceof CustomMessage)) {
                 return false;
             }
 
-            LogicalDecodingMessage logicalDecodingMessage = (LogicalDecodingMessage) m;
+            CustomMessage customMessage = (CustomMessage) m;
 
-            return MESSAGE_PREFIX.equals(logicalDecodingMessage.prefix) &&
-                    SKIP_TRANSACTION_MSG.equals(new String(logicalDecodingMessage.content));
+            return MESSAGE_PREFIX.equals(customMessage.prefix) &&
+                    SKIP_TRANSACTION_MSG.equals(new String(customMessage.content));
         });
     }
 

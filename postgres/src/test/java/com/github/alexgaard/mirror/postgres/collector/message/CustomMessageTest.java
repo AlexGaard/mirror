@@ -6,13 +6,13 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-public class LogicalDecodingMessageTest {
+public class CustomMessageTest {
 
     @Test
     public void shouldParseRawEvent() {
         RawMessage rawMessage = RawEventCreator.create("4D0100000000016063F068656C6C6F0000000005776F726C64");
 
-        LogicalDecodingMessage message = LogicalDecodingMessage.parse(rawMessage);
+        CustomMessage message = CustomMessage.parse(rawMessage);
 
         assertTrue(message.isTransactional);
         assertEquals("hello", message.prefix);

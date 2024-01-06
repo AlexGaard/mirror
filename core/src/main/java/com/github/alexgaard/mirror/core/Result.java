@@ -3,9 +3,12 @@ package com.github.alexgaard.mirror.core;
 import java.util.Objects;
 import java.util.Optional;
 
+import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.softenException;
+
 public abstract class Result {
 
-    private Result() {}
+    private Result() {
+    }
 
     public static Result ok() {
         return Ok.INSTANCE;
@@ -21,11 +24,13 @@ public abstract class Result {
 
     public abstract Optional<Exception> getError();
 
+    public abstract void throwIfError();
 
     public static class Ok extends Result {
         final static Ok INSTANCE = new Ok();
 
-        private Ok() {}
+        private Ok() {
+        }
 
         @Override
         public String toString() {
@@ -46,6 +51,11 @@ public abstract class Result {
         public Optional<Exception> getError() {
             return Optional.empty();
         }
+
+        @Override
+        public void throwIfError() {
+            // NOOP
+        }
     }
 
     public static class Error extends Result {
@@ -53,7 +63,7 @@ public abstract class Result {
         public final Exception exception;
 
         private Error(Exception exception) {
-            this.exception = exception;
+            this.exception = Objects.requireNonNullElseGet(exception, () -> new RuntimeException("Status: error"));
         }
 
         @Override
@@ -88,8 +98,12 @@ public abstract class Result {
 
         @Override
         public Optional<Exception> getError() {
-            return Optional.ofNullable(exception)
-                    .or(() -> Optional.of(new RuntimeException("Status: error")));
+            return Optional.of(exception);
+        }
+
+        @Override
+        public void throwIfError() {
+           throw softenException(exception);
         }
     }
 

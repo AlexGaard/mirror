@@ -27,7 +27,7 @@ import static com.github.alexgaard.mirror.common_test.DbUtils.drainWalMessages;
 import static com.github.alexgaard.mirror.common_test.TestDataGenerator.newId;
 import static com.github.alexgaard.mirror.common_test.TestDataGenerator.newReplicationName;
 import static com.github.alexgaard.mirror.postgres.metadata.PgMetadata.tableFullName;
-import static com.github.alexgaard.mirror.postgres.utils.CustomWalMessage.insertSkipTransactionMessage;
+import static com.github.alexgaard.mirror.postgres.utils.CustomMessageSender.insertSkipTransactionMessage;
 
 import static com.github.alexgaard.mirror.postgres.utils.QueryUtils.update;
 import static java.lang.String.format;

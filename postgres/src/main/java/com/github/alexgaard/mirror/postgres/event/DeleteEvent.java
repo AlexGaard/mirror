@@ -4,20 +4,28 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-public class DeleteEvent extends DataChangeEvent {
+public class DeleteEvent extends PostgresEvent {
 
     public final static String TYPE = "delete";
+
+    public final String namespace;
+
+    public final String table;
 
     public final List<Field<?>> identifierFields;
 
     // Used for deserialization
     public DeleteEvent() {
-        super(null, TYPE, null, null, -1);
+        super(null, TYPE, -1);
+        this.namespace = null;
+        this.table = null;
         this.identifierFields = null;
     }
 
     public DeleteEvent(UUID id, String namespace, String table, int transactionId, List<Field<?>> identifier) {
-        super(id, TYPE, namespace, table, transactionId);
+        super(id, TYPE, transactionId);
+        this.namespace = namespace;
+        this.table = table;
         this.identifierFields = identifier;
     }
 
@@ -28,12 +36,17 @@ public class DeleteEvent extends DataChangeEvent {
 
         DeleteEvent that = (DeleteEvent) o;
 
+        if (!Objects.equals(namespace, that.namespace)) return false;
+        if (!Objects.equals(table, that.table)) return false;
         return Objects.equals(identifierFields, that.identifierFields);
     }
 
     @Override
     public int hashCode() {
-        return identifierFields != null ? identifierFields.hashCode() : 0;
+        int result = namespace != null ? namespace.hashCode() : 0;
+        result = 31 * result + (table != null ? table.hashCode() : 0);
+        result = 31 * result + (identifierFields != null ? identifierFields.hashCode() : 0);
+        return result;
     }
 
     @Override

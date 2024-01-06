@@ -6,7 +6,8 @@ import java.util.Arrays;
 
 import static com.github.alexgaard.mirror.postgres.collector.message.MessageParser.badMessageId;
 
-public class LogicalDecodingMessage extends Message {
+// Also known as logical decoding message
+public class CustomMessage extends Message {
 
     public static final char ID = 'M';
 
@@ -18,7 +19,7 @@ public class LogicalDecodingMessage extends Message {
 
     public final byte[] content;
 
-    protected LogicalDecodingMessage(String lsn, int xid, boolean isTransactional, long lsn1, String prefix, byte[] content) {
+    protected CustomMessage(String lsn, int xid, boolean isTransactional, long lsn1, String prefix, byte[] content) {
         super(lsn, xid, Type.MESSAGE);
         this.isTransactional = isTransactional;
         this.lsn = lsn1;
@@ -50,7 +51,7 @@ public class LogicalDecodingMessage extends Message {
         The content of the logical decoding message.
     */
 
-    public static LogicalDecodingMessage parse(RawMessage msg) {
+    public static CustomMessage parse(RawMessage msg) {
         PgoutputParser parser = new PgoutputParser(msg.data);
 
         char type = parser.nextChar();
@@ -69,7 +70,7 @@ public class LogicalDecodingMessage extends Message {
 
         byte[] content = parser.nextBytes(contentLength);
 
-        return new LogicalDecodingMessage(msg.lsn, msg.xid, flags == 1, lsn, prefix, content);
+        return new CustomMessage(msg.lsn, msg.xid, flags == 1, lsn, prefix, content);
     }
 
     @Override
@@ -77,7 +78,7 @@ public class LogicalDecodingMessage extends Message {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        LogicalDecodingMessage that = (LogicalDecodingMessage) o;
+        CustomMessage that = (CustomMessage) o;
 
         if (isTransactional != that.isTransactional) return false;
         if (lsn != that.lsn) return false;

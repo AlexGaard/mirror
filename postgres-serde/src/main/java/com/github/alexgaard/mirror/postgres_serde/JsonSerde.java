@@ -8,7 +8,7 @@ import com.github.alexgaard.mirror.core.Event;
 import com.github.alexgaard.mirror.postgres.event.Field;
 import com.github.alexgaard.mirror.core.serde.Deserializer;
 import com.github.alexgaard.mirror.core.serde.Serializer;
-import com.github.alexgaard.mirror.postgres.event.DataChangeEvent;
+import com.github.alexgaard.mirror.postgres.event.PostgresEvent;
 
 public class JsonSerde {
 
@@ -25,7 +25,7 @@ public class JsonSerde {
 
         SimpleModule deserializers = new SimpleModule();
         deserializers.addDeserializer(Event.class, new EventDeserializer());
-        deserializers.addDeserializer(DataChangeEvent.class, new DataChangeEventDeserializer());
+        deserializers.addDeserializer(PostgresEvent.class, new PostgresEventDeserializer());
         deserializers.addDeserializer(Field.class, new FieldDeserializer());
         mapper.registerModule(deserializers);
 

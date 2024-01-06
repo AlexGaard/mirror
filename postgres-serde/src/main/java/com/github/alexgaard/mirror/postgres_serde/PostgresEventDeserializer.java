@@ -9,18 +9,18 @@ import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 
 import java.io.IOException;
 
-public class DataChangeEventDeserializer extends StdDeserializer<DataChangeEvent> {
+public class PostgresEventDeserializer extends StdDeserializer<PostgresEvent> {
 
-    public DataChangeEventDeserializer() {
+    public PostgresEventDeserializer() {
         this(null);
     }
 
-    protected DataChangeEventDeserializer(Class<?> vc) {
+    protected PostgresEventDeserializer(Class<?> vc) {
         super(vc);
     }
 
     @Override
-    public DataChangeEvent deserialize(JsonParser jsonParser, DeserializationContext ctx) throws IOException {
+    public PostgresEvent deserialize(JsonParser jsonParser, DeserializationContext ctx) throws IOException {
         final ObjectMapper mapper = (ObjectMapper) jsonParser.getCodec();
         final JsonNode node = mapper.readTree(jsonParser);
 
@@ -35,6 +35,9 @@ public class DataChangeEventDeserializer extends StdDeserializer<DataChangeEvent
             }
             case DeleteEvent.TYPE: {
                 return mapper.treeToValue(node, DeleteEvent.class);
+            }
+            case CustomMessageEvent.TYPE: {
+                return mapper.treeToValue(node, CustomMessageEvent.class);
             }
             default:
                 throw new IllegalArgumentException("Unable to deserialize unknown event of type " + type);

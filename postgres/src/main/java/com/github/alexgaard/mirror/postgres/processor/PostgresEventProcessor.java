@@ -4,6 +4,7 @@ import com.github.alexgaard.mirror.core.EventSink;
 import com.github.alexgaard.mirror.core.Result;
 import com.github.alexgaard.mirror.core.Event;
 import com.github.alexgaard.mirror.postgres.event.*;
+import com.github.alexgaard.mirror.postgres.processor.config.CustomMessageHandler;
 import com.github.alexgaard.mirror.postgres.processor.config.InsertConflictStrategy;
 import com.github.alexgaard.mirror.postgres.processor.config.ProcessorConfig;
 import com.github.alexgaard.mirror.postgres.processor.config.ProcessorTableConfig;
@@ -19,8 +20,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
+import static com.github.alexgaard.mirror.core.utils.ExceptionUtil.runWithResult;
 import static com.github.alexgaard.mirror.postgres.metadata.PgMetadata.tableFullName;
-import static com.github.alexgaard.mirror.postgres.utils.CustomWalMessage.insertSkipTransactionMessage;
+import static com.github.alexgaard.mirror.postgres.utils.CustomMessageSender.insertSkipTransactionMessage;
 import static java.lang.String.format;
 
 public class PostgresEventProcessor implements EventSink {
@@ -55,7 +57,7 @@ public class PostgresEventProcessor implements EventSink {
 
         int lastTransactionId = lastSourceTransactionId.getOrDefault(transaction.sourceName, 0);
 
-        List<DataChangeEvent> filteredEvents = filterNewEvents(transaction.events, lastTransactionId);
+        List<PostgresEvent> filteredEvents = filterNewEvents(transaction.events, lastTransactionId);
 
         if (filteredEvents.isEmpty()) {
             return Result.ok();
@@ -87,13 +89,24 @@ public class PostgresEventProcessor implements EventSink {
         }
     }
 
-    private void handleDataChangeEvent(DataChangeEvent event, Connection connection) {
+    private void handleDataChangeEvent(PostgresEvent event, Connection connection) {
         if (event instanceof InsertEvent) {
             handleInsertDataChange((InsertEvent) event, connection);
         } else if (event instanceof UpdateEvent) {
             handleUpdateEvent((UpdateEvent) event, connection);
         } else if (event instanceof DeleteEvent) {
             handleDeleteEvent((DeleteEvent) event, connection);
+        } else if (event instanceof CustomMessageEvent) {
+            CustomMessageHandler customMessageHandler = config.getCustomMessageHandler();
+            CustomMessageEvent customMessageEvent = ((CustomMessageEvent) event);
+
+            if (customMessageHandler == null) {
+                log.warn("Received custom message with prefix {} but no handler was registered to handle it", customMessageEvent.prefix);
+                return;
+            }
+
+            runWithResult(() -> customMessageHandler.handle(customMessageEvent, connection))
+                .throwIfError();
         }
     }
 
@@ -245,7 +258,7 @@ public class PostgresEventProcessor implements EventSink {
         }
     }
 
-    private static List<DataChangeEvent> filterNewEvents(List<DataChangeEvent> events, int lastTransactionId) {
+    private static List<PostgresEvent> filterNewEvents(List<PostgresEvent> events, int lastTransactionId) {
         return events.stream().filter(e -> {
             boolean isNew = e.transactionId > lastTransactionId;
 
@@ -257,7 +270,7 @@ public class PostgresEventProcessor implements EventSink {
         }).collect(Collectors.toList());
     }
 
-    private static Integer findLastTransactionId(List<DataChangeEvent> events) {
+    private static Integer findLastTransactionId(List<PostgresEvent> events) {
         if (events.isEmpty()) {
             return 0;
         }

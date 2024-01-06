@@ -24,8 +24,8 @@ public class MessageParser {
                 return RelationMessage.parse(message);
             case DeleteMessage.ID:
                 return DeleteMessage.parse(message);
-            case LogicalDecodingMessage.ID:
-                return LogicalDecodingMessage.parse(message);
+            case CustomMessage.ID:
+                return CustomMessage.parse(message);
             case TypeMessage.ID:
                 return TypeMessage.parse(message);
             case TruncateMessage.ID:

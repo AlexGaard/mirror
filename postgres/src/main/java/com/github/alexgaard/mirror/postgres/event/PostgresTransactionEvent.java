@@ -12,7 +12,7 @@ public class PostgresTransactionEvent extends Event {
 
     public final static String TYPE = "postgres-transaction";
 
-    public final List<DataChangeEvent> events;
+    public final List<PostgresEvent> events;
 
     public final OffsetDateTime committedAt;
 
@@ -22,17 +22,17 @@ public class PostgresTransactionEvent extends Event {
         this.committedAt = null;
     }
 
-    public PostgresTransactionEvent(UUID id, String sourceName, String type, List<DataChangeEvent> events, OffsetDateTime committedAt) {
+    public PostgresTransactionEvent(UUID id, String sourceName, String type, List<PostgresEvent> events, OffsetDateTime committedAt) {
         super(id, sourceName, type, committedAt);
         this.events = events;
         this.committedAt = committedAt;
     }
 
-    public static PostgresTransactionEvent of(String sourceName, List<DataChangeEvent> events, OffsetDateTime committedAt) {
+    public static PostgresTransactionEvent of(String sourceName, List<PostgresEvent> events, OffsetDateTime committedAt) {
         return new PostgresTransactionEvent(UUID.randomUUID(), sourceName, TYPE, events, committedAt);
     }
 
-    public static PostgresTransactionEvent of(String sourceName, DataChangeEvent event) {
+    public static PostgresTransactionEvent of(String sourceName, PostgresEvent event) {
         return of(sourceName, Collections.singletonList(event), OffsetDateTime.now());
     }
 
