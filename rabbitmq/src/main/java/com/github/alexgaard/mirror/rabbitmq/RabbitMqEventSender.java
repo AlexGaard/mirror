@@ -55,8 +55,7 @@ public class RabbitMqEventSender implements EventSink {
         }
 
         try {
-            String message = serializer.serialize(transaction);
-            channel.basicPublish(exchangeName, routingKey, null, message.getBytes());
+            channel.basicPublish(exchangeName, routingKey, null, serializer.serialize(transaction));
 
             return Result.ok();
         } catch (IOException e) {

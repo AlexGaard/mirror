@@ -6,6 +6,6 @@ import java.io.IOException;
 
 public interface Serializer {
 
-    String serialize(Event transaction) throws IOException;
+    byte[] serialize(Event transaction) throws IOException;
 
 }

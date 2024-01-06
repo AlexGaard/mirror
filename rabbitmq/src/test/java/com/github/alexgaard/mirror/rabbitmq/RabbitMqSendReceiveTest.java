@@ -14,6 +14,7 @@ import java.time.ZoneId;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.github.alexgaard.mirror.common_test.AsyncUtils.eventually;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -54,7 +55,7 @@ public class RabbitMqSendReceiveTest {
                 RabbitMqSingletonContainer.createConnectionFactory(),
                 exchange,
                 routingKey,
-                (transaction) -> objectMapper.writeValueAsString(transaction)
+                objectMapper::writeValueAsBytes
         );
 
         OffsetDateTime nowUtc = OffsetDateTime.now(ZoneId.of("UTC"));
@@ -68,7 +69,7 @@ public class RabbitMqSendReceiveTest {
 
         sender.consume(event);
 
-        AsyncUtils.eventually(() -> {
+        eventually(() -> {
             assertNotNull(transactionRef.get());
             assertEquals(objectMapper.writeValueAsString(event), objectMapper.writeValueAsString(transactionRef.get()));
         });

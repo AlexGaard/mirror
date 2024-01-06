@@ -84,9 +84,7 @@ public class RabbitMqEventReceiver implements EventSource {
 
         DeliverCallback deliverCallback = (consumerTag, delivery) -> {
             Result result = runWithResult(() -> {
-                String message = new String(delivery.getBody(), StandardCharsets.UTF_8);
-
-                Event transaction = deserializer.deserialize(message);
+                Event transaction = deserializer.deserialize(delivery.getBody());
 
                 return eventSink.consume(transaction);
             });

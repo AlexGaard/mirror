@@ -14,7 +14,7 @@ public class JsonSerde {
 
     public static final ObjectMapper jsonMapper = createMapper();
 
-    public static final Serializer jsonSerializer = jsonMapper::writeValueAsString;
+    public static final Serializer jsonSerializer = jsonMapper::writeValueAsBytes;
 
     public static final Deserializer jsonDeserializer = (data -> jsonMapper.readValue(data, Event.class));
 

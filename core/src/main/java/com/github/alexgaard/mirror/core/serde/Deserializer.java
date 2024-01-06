@@ -6,6 +6,6 @@ import java.io.IOException;
 
 public interface Deserializer {
 
-    Event deserialize(String data) throws IOException;
+    Event deserialize(byte[] data) throws IOException;
 
 }
