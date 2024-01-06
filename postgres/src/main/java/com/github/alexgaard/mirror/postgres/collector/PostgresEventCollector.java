@@ -134,7 +134,11 @@ public class PostgresEventCollector implements EventSource {
                         continue;
                     }
 
-                    List<PostgresEvent> transactionEvents = toEventTransaction(transaction, relationMessages);
+                    List<PostgresEvent> transactionEvents = transaction
+                            .stream()
+                            .map(m -> mapToPostgresEvent(m, relationMessages))
+                            .filter(Objects::nonNull)
+                            .collect(Collectors.toList());;
 
                     CommitMessage commit = (CommitMessage) transaction.stream()
                             .filter(m -> m.type.equals(Message.Type.COMMIT))
@@ -168,96 +172,80 @@ public class PostgresEventCollector implements EventSource {
         }
     }
 
-    private List<PostgresEvent> toEventTransaction(List<Message> msgTransaction, List<RelationMessage> relationMessages) {
-        List<PostgresEvent> event = new ArrayList<>();
+    private PostgresEvent mapToPostgresEvent(Message message, List<RelationMessage> relationMessages) {
+        switch (message.type) {
+            case INSERT: {
+                InsertMessage insert = (InsertMessage) message;
 
-        for (Message message : msgTransaction) {
-            switch (message.type) {
-                case INSERT: {
-                    InsertMessage insert = (InsertMessage) message;
+                RelationMessage relation = relationMessages
+                        .stream()
+                        .filter(m -> m.oid == insert.relationMessageOid)
+                        .findAny()
+                        .orElseThrow();
 
-                    RelationMessage relation = relationMessages
-                            .stream()
-                            .filter(m -> m.oid == insert.relationMessageOid)
-                            .findAny()
-                            .orElseThrow();
+                List<Field<?>> fields = toFields(insert.columns, relation);
 
-                    List<Field<?>> fields = toFields(insert.columns, relation);
-
-                    InsertEvent insertDataChange = new InsertEvent(
-                            UUID.randomUUID(),
-                            relation.namespace,
-                            relation.relationName,
-                            insert.xid,
-                            fields
-                    );
-
-                    event.add(insertDataChange);
-                    break;
-                }
-                case DELETE: {
-                    DeleteMessage delete = (DeleteMessage) message;
-
-                    RelationMessage relation = relationMessages
-                            .stream()
-                            .filter(m -> m.oid == delete.relationMessageOid)
-                            .findAny()
-                            .orElseThrow();
-
-                    List<Field<?>> identifyingFields = findIdentifyingFields(delete.replicaIdentityType, delete.columns, relation);
-
-                    DeleteEvent deleteEvent = new DeleteEvent(
-                            UUID.randomUUID(),
-                            relation.namespace,
-                            relation.relationName,
-                            delete.xid,
-                            identifyingFields
-                    );
-
-                    event.add(deleteEvent);
-                    break;
-                }
-                case UPDATE: {
-                    UpdateMessage update = (UpdateMessage) message;
-
-                    RelationMessage relation = relationMessages
-                            .stream()
-                            .filter(m -> m.oid == update.relationMessageOid)
-                            .findAny()
-                            .orElseThrow();
-
-                    List<Field<?>> identifyingFields = findIdentifyingFields(update.replicaIdentityType, update.oldTupleOrKeyColumns, relation);
-                    List<Field<?>> updatedFields = findUpdatedFields(update.replicaIdentityType, update, relation, identifyingFields);
-
-                    UpdateEvent updateEvent = new UpdateEvent(
-                            UUID.randomUUID(),
-                            relation.namespace,
-                            relation.relationName,
-                            update.xid,
-                            identifyingFields,
-                            updatedFields
-                    );
-
-                    event.add(updateEvent);
-                    break;
-                }
-                case MESSAGE: {
-                    CustomMessage customMessage = (CustomMessage) message;
-
-                    CustomMessageEvent messageEvent = new CustomMessageEvent(
-                            UUID.randomUUID(),
-                            customMessage.prefix,
-                            new String(customMessage.content),
-                            customMessage.xid
-                    );
-
-                    event.add(messageEvent);
-                }
+                return new InsertEvent(
+                        UUID.randomUUID(),
+                        relation.namespace,
+                        relation.relationName,
+                        insert.xid,
+                        fields
+                );
             }
+            case DELETE: {
+                DeleteMessage delete = (DeleteMessage) message;
 
+                RelationMessage relation = relationMessages
+                        .stream()
+                        .filter(m -> m.oid == delete.relationMessageOid)
+                        .findAny()
+                        .orElseThrow();
+
+                List<Field<?>> identifyingFields = findIdentifyingFields(delete.replicaIdentityType, delete.columns, relation);
+
+                return new DeleteEvent(
+                        UUID.randomUUID(),
+                        relation.namespace,
+                        relation.relationName,
+                        delete.xid,
+                        identifyingFields
+                );
+            }
+            case UPDATE: {
+                UpdateMessage update = (UpdateMessage) message;
+
+                RelationMessage relation = relationMessages
+                        .stream()
+                        .filter(m -> m.oid == update.relationMessageOid)
+                        .findAny()
+                        .orElseThrow();
+
+                List<Field<?>> identifyingFields = findIdentifyingFields(update.replicaIdentityType, update.oldTupleOrKeyColumns, relation);
+                List<Field<?>> updatedFields = findUpdatedFields(update.replicaIdentityType, update, relation, identifyingFields);
+
+                return new UpdateEvent(
+                        UUID.randomUUID(),
+                        relation.namespace,
+                        relation.relationName,
+                        update.xid,
+                        identifyingFields,
+                        updatedFields
+                );
+            }
+            case MESSAGE: {
+                CustomMessage customMessage = (CustomMessage) message;
+
+                return new CustomMessageEvent(
+                        UUID.randomUUID(),
+                        customMessage.prefix,
+                        new String(customMessage.content),
+                        customMessage.xid
+                );
+            }
         }
 
-        return event;
+        return null;
     }
 
     private List<Field<?>> findIdentifyingFields(Character replicaIdentityType, List<TupleDataColumn> oldColumns, RelationMessage relation) {
@@ -284,20 +272,6 @@ public class PostgresEventCollector implements EventSource {
                 .stream()
                 .filter(f -> relation.columns.stream().anyMatch(c -> c.name.equals(f.name) && c.partOfKey))
                 .collect(Collectors.toList());
-    }
-
-    private static List<Field<?>> filterOrdinalPosition(List<Field<?>> fields, List<Integer> ordinalPositions) {
-        int ordinalPos = 1;
-        List<Field<?>> filteredFields = new ArrayList<>();
-
-        for (Field<?> field : fields) {
-            if (ordinalPositions.contains(ordinalPos)) {
-                filteredFields.add(field);
-            }
-            ordinalPos++;
-        }
-
-        return filteredFields;
     }
 
     private List<Field<?>> findUpdatedFields(
@@ -348,31 +322,6 @@ public class PostgresEventCollector implements EventSource {
         });
     }
 
-    private static Optional<ConstraintMetadata> findIdentifyingConstraint(
-            List<ConstraintMetadata> constraints,
-            List<ColumnMetadata> columns
-    ) {
-        // Constraints are expected to be sorted primary key before unique
-        for (ConstraintMetadata constraint : constraints) {
-            if (constraint.type.equals(ConstraintMetadata.ConstraintType.PRIMARY_KEY)) {
-                return of(constraint);
-            }
-
-            // Uses the first constraint without nullable fields as the identifier
-            if (constraint.type.equals(ConstraintMetadata.ConstraintType.UNIQUE)) {
-                boolean hasNullableField = columns
-                        .stream()
-                        .anyMatch(c -> constraint.constraintKeyOrdinalPositions.contains(c.ordinalPosition) && c.isNullable);
-
-                if (!hasNullableField) {
-                    return of(constraint);
-                }
-            }
-        }
-
-        return empty();
-    }
-
     private List<Field<?>> toFields(List<TupleDataColumn> columns, RelationMessage relation) {
         if (columns.size() > relation.columns.size()) {
             throw new IllegalArgumentException(format("Tuple data columns length (%d) must be equal or less than relation columns (%d)", columns.size(), relation.columns.size()));
@@ -420,6 +369,31 @@ public class PostgresEventCollector implements EventSource {
         });
     }
 
+    private static Optional<ConstraintMetadata> findIdentifyingConstraint(
+            List<ConstraintMetadata> constraints,
+            List<ColumnMetadata> columns
+    ) {
+        // Constraints are expected to be sorted primary key before unique
+        for (ConstraintMetadata constraint : constraints) {
+            if (constraint.type.equals(ConstraintMetadata.ConstraintType.PRIMARY_KEY)) {
+                return of(constraint);
+            }
+
+            // Uses the first constraint without nullable fields as the identifier
+            if (constraint.type.equals(ConstraintMetadata.ConstraintType.UNIQUE)) {
+                boolean hasNullableField = columns
+                        .stream()
+                        .anyMatch(c -> constraint.constraintKeyOrdinalPositions.contains(c.ordinalPosition) && c.isNullable);
+
+                if (!hasNullableField) {
+                    return of(constraint);
+                }
+            }
+        }
+
+        return empty();
+    }
+
     private static List<List<Message>> splitIntoTransactions(List<Message> messages) {
         List<List<Message>> transactions = new ArrayList<>();
         List<Message> lastList = null;
@@ -438,6 +412,20 @@ public class PostgresEventCollector implements EventSource {
         }
 
         return transactions;
+    }
+
+    private static List<Field<?>> filterOrdinalPosition(List<Field<?>> fields, List<Integer> ordinalPositions) {
+        int ordinalPos = 1;
+        List<Field<?>> filteredFields = new ArrayList<>();
+
+        for (Field<?> field : fields) {
+            if (ordinalPositions.contains(ordinalPos)) {
+                filteredFields.add(field);
+            }
+            ordinalPos++;
+        }
+
+        return filteredFields;
     }
 
     private static RawMessage toRawEvent(ResultSet resultSet) throws SQLException {
